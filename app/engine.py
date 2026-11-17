@@ -13,7 +13,10 @@ SEVERITY_ORDER = {"critical": 0, "major": 1, "minor": 2, "info": 3}
 # Obvious one-to-one replacements for text-speak and hype (TONE-01/02).
 SIMPLE_FIXES = {
     "gonna": "going to", "wanna": "want to", "u r": "you are", "pls": "please",
-    "plz": "please", "luv": "love", "!!!": "!", "!!": "!",
+    "plz": "please", "luv": "love",
+    # CLAIM-03: describe the offer instead of promising an outcome
+    "guarantee": "offer", "guaranteed": "", "100% placement": "placement support",
+    "assured job": "career support", "job assured": "career support", "sure-shot": "", "sure shot": "",
 }
 CAPS_ALLOWLIST = {"AI", "ML", "UI", "UX", "HTML", "CSS", "API", "FAQ", "CTA", "PDF", "DSA", "IIT", "NIT", "JIIT", "USA", "UK", "OK", "CEO", "HR"}
 MONTHS = r"jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december"
@@ -72,22 +75,26 @@ def check_patterns(text, kit):
     for rule in kit["rules"]:
         for phrase in rule.get("patterns", []):
             for m in re.finditer(_boundary_pattern(phrase), text, re.IGNORECASE):
-                found = m.group(0)
-                fix = SIMPLE_FIXES.get(found.lower())
+                start, end = m.start(), m.end()
+                fix = SIMPLE_FIXES.get(m.group(0).lower())
                 fix_note = None
                 if rule["id"] == "TONE-03":
+                    end += len(re.match(r"[!.]*", text[end:]).group(0))  # remove "LAST CHANCE!!!" as one unit
                     fix, fix_note = "", "Remove the pressure phrase; give a real end date instead (see approved offer facts)."
                 elif rule["id"] == "CLAIM-02":
-                    fix_note = "Remove the ranking, or replace it with an approved fact (for example the number of students)."
+                    fix, fix_note = "", "Remove the ranking, or replace it with an approved fact (for example the number of students)."
                 elif rule["id"] == "CLAIM-03":
                     fix_note = "Describe what you offer (for example 'placement support') instead of promising a result."
                 elif rule["id"] == "ACC-02":
                     fix_note = "Say where the link goes, for example 'Register on our website'."
-                out.append(_finding(rule["id"], rule["category"], rule["severity"], m.start(), m.end(), found,
+                out.append(_finding(rule["id"], rule["category"], rule["severity"], start, end, text[start:end],
                                     f"{rule['title']}. {rule['text']}", fix=fix, fix_note=fix_note))
+    pressure = [(f["start"], f["end"]) for f in out if f["rule_id"] == "TONE-03"]
     for m in re.finditer(r"!{2,}", text):
+        if any(s <= m.start() < e for s, e in pressure):
+            continue
         out.append(_finding("TONE-03", "tone", "major", m.start(), m.end(), m.group(0),
-                            "No pressure tactics: avoid rows of exclamation marks.", fix="."))
+                            "No pressure tactics: avoid rows of exclamation marks.", fix="!"))
     return out
 
 
@@ -265,10 +272,10 @@ def apply_fixes(text, findings):
 
 
 def tidy(text):
+    """Clean up gaps left by removed phrases without changing the author's own punctuation."""
     text = re.sub(r"[ \t]{2,}", " ", text)
-    text = re.sub(r"\s+([.,!?])", r"\1", text)
-    text = re.sub(r"([.!?])\1+", r"\1", text)
-    text = re.sub(r"\.\s*\.", ".", text)
+    text = re.sub(r"[ \t]+([.,!?])", r"\1", text)
+    text = re.sub(r"([.!?])[ \t]*\.(?!\.)", r"\1", text)
     return text.strip()
 
 

@@ -4,8 +4,9 @@ Rule checks always run in code. When ANTHROPIC_API_KEY is set, Claude plans whic
 further checks the content needs (tone, messaging, claims in context), calls the
 tools below for evidence, records findings, and proposes a rewrite. The policy
 guard only keeps findings that cite an ID returned by a tool in the same run,
-and the rewrite must pass verify_intent in code. Without a key the agent runs in
-rules-only mode, so the product still works end to end.
+and the rewrite must pass verify_intent in code. The key is read only from
+BRANDGUARD_ANTHROPIC_API_KEY. Without it the agent runs in rules-only mode, so
+the product still works end to end.
 """
 import json
 import os
@@ -63,8 +64,11 @@ TOOLS = [
 ]
 
 
+API_KEY_VAR = "BRANDGUARD_ANTHROPIC_API_KEY"  # dedicated variable: never pick up credentials meant for other tools
+
+
 def ai_available():
-    return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+    return bool(os.environ.get(API_KEY_VAR))
 
 
 class _Run:
@@ -155,7 +159,7 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                                "AI review is off (no API key configured). Rule checks and fact checks ran in code.")
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=os.environ[API_KEY_VAR], base_url="https://api.anthropic.com")
     run = _Run(text, intent, kit, rule_findings)
     brief = {
         "content": text, "intent": intent, "brand": kit["brand"]["name"], "voice": kit["brand"]["voice"],

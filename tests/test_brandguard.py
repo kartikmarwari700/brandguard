@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-os.environ.pop("ANTHROPIC_API_KEY", None)  # tests run in rules-only mode: deterministic and free
+os.environ.pop("BRANDGUARD_ANTHROPIC_API_KEY", None)  # tests run in rules-only mode: deterministic and free
 
 from app import engine  # noqa: E402
 
