@@ -4,7 +4,7 @@
 
 **Explainable brand governance before you hit publish.** Team **Cite or Flag** · CodeZen India 2026 · problem statement by Inkloom AI.
 
-**Live demo: https://brandguard-fa7o.onrender.com** · no sign-in needed · the demo brand **CodeCraft Academy** and all its facts are fictional · free hosting: if the first load is slow, give it up to a minute.
+**Live demo: https://brandguard-fa7o.onrender.com** · **Round 2 report:** [docs/CiteOrFlag-BrandGuard-Round2-Report.pdf](docs/CiteOrFlag-BrandGuard-Round2-Report.pdf) · no sign-in needed · the demo brand **CodeCraft Academy** and all its facts are fictional · free hosting: if the first load is slow, give it up to a minute.
 
 Content goes in before it is published (a post, an ad, an email or a Word document). BrandGuard checks it against the
 organisation's Brand Kit (rules, approved facts, terminology, brand colours). Every issue comes back with the **rule or fact
