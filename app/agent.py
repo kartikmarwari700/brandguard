@@ -1,22 +1,46 @@
 """The Review Agent: deterministic tools first, then (optionally) Claude with tool calling.
 
-Rule checks always run in code. When ANTHROPIC_API_KEY is set, Claude plans which
+Rule checks always run in code. When BRANDGUARD_ANTHROPIC_API_KEY is set, Claude plans which
 further checks the content needs (tone, messaging, claims in context), calls the
 tools below for evidence, records findings, and proposes a rewrite. The policy
 guard only keeps findings that cite an ID returned by a tool in the same run,
 and the rewrite must pass verify_intent in code. The key is read only from
 BRANDGUARD_ANTHROPIC_API_KEY. Without it the agent runs in rules-only mode, so
 the product still works end to end.
+
+Cost control (the demo runs on a small, fixed API budget):
+- Claude Haiku 5.5 at low effort, a short tool loop and a per-response token cap;
+- prompt caching on the shared system prompt and the growing conversation;
+- identical reviews are reused instead of paid for twice (same text, intent, Brand Kit, model and day);
+- a spend meter computed from every response's token usage stops AI review at BRANDGUARD_AI_BUDGET_USD,
+  plus an hourly cap on new AI reviews and a length cap on the text sent to the model.
+When a limit is reached the review continues in rules-only mode and says why.
 """
+import copy
+import hashlib
 import json
+import logging
 import os
 import re
+import threading
+import time
+from collections import OrderedDict, deque
+from datetime import date
 
 from . import engine
 
-MODEL = os.environ.get("BRANDGUARD_MODEL", "claude-opus-5-5")
-MAX_TOOL_CALLS = 10
-MAX_TURNS = 8
+log = logging.getLogger("brandguard.agent")
+
+MODEL = os.environ.get("BRANDGUARD_MODEL", "claude-haiku-5-5")
+MAX_TOOL_CALLS = 8
+MAX_TURNS = 6
+MAX_TOKENS = 4000      # per response; thinking counts toward it
+AI_MAX_CHARS = 3000    # longer texts get rule checks only
+CACHE_SIZE = 256
+
+# USD per million tokens (input, output) for prompts under 100K tokens. Cache reads are billed at 0.1x input
+# (0.05x on the 5.5 Sonnet/Opus models, so 0.1x over-estimates there) and 5-minute cache writes at 1.25x input.
+PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
 
 SYSTEM_PROMPT = """You are BrandGuard's Review Agent. You review a piece of marketing content before it is published,
 against the organisation's Brand Kit. Code has already run exact checks (glossary, banned phrases, numbers vs approved
@@ -69,6 +93,97 @@ API_KEY_VAR = "BRANDGUARD_ANTHROPIC_API_KEY"  # dedicated variable: never pick u
 
 def ai_available():
     return bool(os.environ.get(API_KEY_VAR))
+
+
+def cost_usd(model, usage):
+    """Cost of one response from its usage block (input_tokens excludes cached tokens)."""
+    price_in, price_out = PRICES.get(model, PRICES["claude-opus-5-5"])  # unknown model: assume the dearest
+
+    def n(key):
+        return getattr(usage, key, 0) or 0
+
+    return (n("input_tokens") * price_in + n("cache_creation_input_tokens") * price_in * 1.25
+            + n("cache_read_input_tokens") * price_in * 0.1 + n("output_tokens") * price_out) / 1_000_000
+
+
+class Budget:
+    """Spend meter for this server process. The hard cap is the Anthropic Console spend limit; this keeps the
+    demo well below it and switches to rules-only mode before it is reached."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.reset()
+
+    def reset(self):
+        with self.lock:
+            self.spent, self.calls, self.reviews, self.reused = 0.0, 0, 0, 0
+            self._recent = deque()
+
+    @staticmethod
+    def limit():
+        return float(os.environ.get("BRANDGUARD_AI_BUDGET_USD", "1.00"))
+
+    @staticmethod
+    def per_hour():
+        return int(os.environ.get("BRANDGUARD_AI_MAX_PER_HOUR", "30"))
+
+    def _blocked(self):
+        if self.spent >= self.limit():
+            return (f"The AI budget for this demo is used up (${self.spent:.2f} of ${self.limit():.2f}). "
+                    "Rule checks and fact checks still ran in code.")
+        cutoff = time.time() - 3600
+        while self._recent and self._recent[0] < cutoff:
+            self._recent.popleft()
+        if len(self._recent) >= self.per_hour():
+            return (f"AI review is limited to {self.per_hour()} new reviews per hour on this demo. "
+                    "Rule checks and fact checks still ran in code; try again later.")
+        return None
+
+    def try_start(self):
+        """Reserve one review slot. Returns None when allowed, otherwise the reason it is not."""
+        with self.lock:
+            reason = self._blocked()
+            if reason is None:
+                self._recent.append(time.time())
+                self.reviews += 1
+            return reason
+
+    def add(self, model, usage):
+        cost = cost_usd(model, usage)
+        with self.lock:
+            self.spent += cost
+            self.calls += 1
+        return cost
+
+    def count_reuse(self):
+        with self.lock:
+            self.reused += 1
+
+    def exhausted(self):
+        with self.lock:
+            return self.spent >= self.limit()
+
+    def snapshot(self):
+        with self.lock:
+            return {"spent_usd": round(self.spent, 4), "limit_usd": self.limit(), "reviews": self.reviews,
+                    "reused": self.reused, "api_calls": self.calls, "per_hour": self.per_hour(),
+                    "paused": self._blocked()}
+
+
+budget = Budget()
+_results = OrderedDict()  # review cache: identical input -> the identical, already paid-for result
+_results_lock = threading.Lock()
+
+
+def _cache_key(text, intent, kit):
+    kit_data = {k: v for k, v in kit.items() if k != "version"}
+    blob = json.dumps([MODEL, text, intent, kit_data, date.today().isoformat()], sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def clear_cache():
+    with _results_lock:
+        _results.clear()
 
 
 class _Run:
@@ -149,7 +264,7 @@ def _offline_result(text, intent, kit, rule_findings, reason):
     rewrite = engine.apply_fixes(text, rule_findings)
     check = engine.verify_intent(text, rewrite, intent, kit)
     return {"mode": "rules-only", "status": "done", "note": reason, "findings": [],
-            "rewrite": rewrite, "rewrite_check": check, "tool_log": [], "rejected": []}
+            "rewrite": rewrite, "rewrite_check": check, "tool_log": [], "rejected": [], "cost_usd": 0.0}
 
 
 def review_with_ai(text, intent, kit, rule_findings, verified):
@@ -157,6 +272,24 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
     if not ai_available():
         return _offline_result(text, intent, kit, rule_findings,
                                "AI review is off (no API key configured). Rule checks and fact checks ran in code.")
+    if len(text) > AI_MAX_CHARS:
+        return _offline_result(text, intent, kit, rule_findings,
+                               f"AI review runs on texts up to {AI_MAX_CHARS:,} characters to keep costs low. "
+                               "Rule checks and fact checks ran in code on the full text.")
+    key = _cache_key(text, intent, kit)
+    with _results_lock:
+        hit = _results.get(key)
+        if hit is not None:
+            _results.move_to_end(key)
+    if hit is not None:
+        budget.count_reuse()
+        result = copy.deepcopy(hit)
+        result.update(cached=True, cost_usd=0.0)
+        return result
+    blocked = budget.try_start()
+    if blocked:
+        return _offline_result(text, intent, kit, rule_findings, blocked)
+
     import anthropic
 
     client = anthropic.Anthropic(api_key=os.environ[API_KEY_VAR], base_url="https://api.anthropic.com")
@@ -167,20 +300,26 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                           for f in rule_findings],
         "verified_claims": verified,
     }
-    messages = [{"role": "user", "content": "Review this content.\n" + json.dumps(brief, ensure_ascii=False, indent=1)}]
-    calls = 0
+    messages = [{"role": "user", "content": "Review this content.\n" + json.dumps(brief, ensure_ascii=False)}]
+    system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+    calls, spent, note = 0, 0.0, None
     try:
-        for _ in range(MAX_TURNS):
-            response = client.beta.messages.create(
-                model=MODEL, max_tokens=16000, system=SYSTEM_PROMPT, tools=TOOLS, messages=messages,
-                output_config={"effort": "low"},
-                betas=["server-side-fallback-2026-07-01"], fallbacks="default",
-            )
-            if response.stop_reason == "refusal":
+        for turn in range(MAX_TURNS):
+            if turn and budget.exhausted():
+                note = "The AI budget ran out during this review; the remaining AI checks were skipped."
                 break
-            messages.append({"role": "assistant", "content": response.content})
+            response = client.messages.create(
+                model=MODEL, max_tokens=MAX_TOKENS, system=system, tools=TOOLS, messages=messages,
+                output_config={"effort": "low"},
+                cache_control={"type": "ephemeral"},  # automatic caching of the growing tool loop
+            )
+            spent += budget.add(MODEL, response.usage)
+            # refusal, max_tokens or a final answer: stop here (a cut-off tool call is never executed)
+            if response.stop_reason != "tool_use":
+                break
+            messages.append({"role": "assistant", "content": response.content})  # thinking blocks kept unmodified
             tool_uses = [b for b in response.content if b.type == "tool_use"]
-            if response.stop_reason != "tool_use" or not tool_uses:
+            if not tool_uses:
                 break
             results = []
             for block in tool_uses:
@@ -195,9 +334,13 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": json.dumps(out, ensure_ascii=False, default=str), "is_error": is_error})
             messages.append({"role": "user", "content": results})
+            if run.rewrite_check and run.rewrite_check["ok"]:
+                break  # verified rewrite received: no need to pay for a closing message
     except anthropic.APIStatusError as exc:
+        log.warning("Review Agent API error %s: %s", exc.status_code, exc.message)
         return _offline_result(text, intent, kit, rule_findings, f"AI review unavailable ({exc.status_code}); rule checks only.")
     except anthropic.APIConnectionError:
+        log.warning("Review Agent could not reach the API")
         return _offline_result(text, intent, kit, rule_findings, "AI review unavailable (network); rule checks only.")
 
     rewrite, check = run.rewrite, run.rewrite_check
@@ -205,5 +348,12 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
         # The policy guard never shows an unverified rewrite; fall back to the code-applied fixes.
         fallback = engine.apply_fixes(text, rule_findings)
         rewrite, check = fallback, engine.verify_intent(text, fallback, intent, kit)
-    return {"mode": "ai", "model": MODEL, "status": "done", "note": None, "findings": run.ai_findings,
-            "rewrite": rewrite, "rewrite_check": check, "tool_log": run.tool_log, "rejected": run.rejected}
+    result = {"mode": "ai", "model": MODEL, "status": "done", "note": note, "findings": run.ai_findings,
+              "rewrite": rewrite, "rewrite_check": check, "tool_log": run.tool_log, "rejected": run.rejected,
+              "cost_usd": round(spent, 5), "cached": False}
+    if note is None:
+        with _results_lock:
+            _results[key] = copy.deepcopy(result)
+            while len(_results) > CACHE_SIZE:
+                _results.popitem(last=False)
+    return result

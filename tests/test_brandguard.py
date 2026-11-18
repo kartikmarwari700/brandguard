@@ -221,24 +221,36 @@ def _tool(id_, name, **inp):
     return NS(type="tool_use", id=id_, name=name, input=inp)
 
 
+def _usage(inp=2000, out=400):
+    return NS(input_tokens=inp, output_tokens=out, cache_creation_input_tokens=0, cache_read_input_tokens=0)
+
+
 def _fake_client(script, calls):
     def create(**kwargs):
         calls.append(kwargs)
-        return script.pop(0)
+        response = script.pop(0)
+        if not hasattr(response, "usage"):
+            response.usage = _usage()
+        return response
     class Fake:
         def __init__(self, **kw):
-            self.beta = NS(messages=NS(create=create))
+            self.messages = NS(create=create)
     return Fake
 
 
-def _run_agent(monkeypatch, script):
+AGENT_TEXT = "Our amazing mentors help you learn. Sign up at CodeCraft Academy."
+
+
+def _run_agent(monkeypatch, script, text=AGENT_TEXT, fresh=True):
     import anthropic
 
     from app import agent
+    if fresh:
+        agent.budget.reset()
+        agent.clear_cache()
     calls = []
     monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(anthropic, "Anthropic", _fake_client(script, calls))
-    text = "Our amazing mentors help you learn. Sign up at CodeCraft Academy."
     intent = {"purpose": "p", "audience": "a", "cta": "sign up"}
     findings, verified = engine.run_rule_checks(text, KIT, intent, today=TODAY)
     return agent.review_with_ai(text, intent, KIT, findings, verified), calls
@@ -263,12 +275,59 @@ def test_agent_policy_guard_keeps_only_cited_findings(monkeypatch):
     assert result["rewrite"].startswith("Our experienced mentors") and result["rewrite_check"]["ok"]
     assert [t["tool"] for t in result["tool_log"]] == ["add_finding", "search_rules", "add_finding", "add_finding", "submit_rewrite"]
     first = calls[0]
-    assert first["model"] == "claude-opus-5-5" and first["output_config"] == {"effort": "low"}
-    assert first["fallbacks"] == "default" and "server-side-fallback-2026-07-01" in first["betas"]
+    assert first["model"] == "claude-haiku-5-5" and first["output_config"] == {"effort": "low"}
+    assert first["max_tokens"] == 4000 and first["cache_control"] == {"type": "ephemeral"}
+    assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "fallbacks" not in first and "betas" not in first  # Haiku 5.5 has no server-side refusal fallback
     # tool results go back in one user message, matched by id
     batches = [[b["tool_use_id"] for b in m["content"]] for m in calls[-1]["messages"]
                if m["role"] == "user" and isinstance(m["content"], list)]
     assert batches == [["t1"], ["t2"], ["t3", "t4", "t5"]]
+    # a verified rewrite ends the loop: the closing "Done." turn is never paid for
+    assert len(calls) == 3
+    assert result["cost_usd"] == pytest.approx(3 * (2000 * 0.10 + 400 * 0.50) / 1e6)
+
+
+def test_agent_reuses_identical_review_without_new_cost(monkeypatch):
+    from app import agent
+    script = [NS(stop_reason="tool_use", content=[_tool("t1", "submit_rewrite", text="Our experienced mentors help you learn. Sign up at CodeCraft Academy.")])]
+    first, calls = _run_agent(monkeypatch, script)
+    assert first["mode"] == "ai" and not first["cached"] and len(calls) == 1
+    again, calls2 = _run_agent(monkeypatch, [], fresh=False)
+    assert again["cached"] and again["cost_usd"] == 0 and calls2 == []
+    assert again["rewrite"] == first["rewrite"]
+    snap = agent.budget.snapshot()
+    assert snap["reviews"] == 1 and snap["reused"] == 1 and snap["api_calls"] == 1
+
+
+def test_agent_budget_cap_switches_to_rules_only(monkeypatch):
+    monkeypatch.setenv("BRANDGUARD_AI_BUDGET_USD", "0.002")
+    script = [NS(stop_reason="tool_use", content=[_tool("t1", "search_rules", query="tone")], usage=_usage(20000, 2000))]
+    result, calls = _run_agent(monkeypatch, script)
+    # the first response used up the budget: the loop stops before paying for another turn
+    assert len(calls) == 1 and result["mode"] == "ai" and "budget ran out" in result["note"]
+    nxt, calls2 = _run_agent(monkeypatch, [], text="Learn Python at CodeCraft Academy. Sign up today.", fresh=False)
+    assert nxt["mode"] == "rules-only" and "budget" in nxt["note"] and calls2 == []
+
+
+def test_agent_hourly_cap_and_length_cap(monkeypatch):
+    monkeypatch.setenv("BRANDGUARD_AI_MAX_PER_HOUR", "1")
+    ok = [NS(stop_reason="end_turn", content=[])]
+    _run_agent(monkeypatch, ok)
+    capped, calls = _run_agent(monkeypatch, [], text="Learn Python at CodeCraft Academy. Sign up today.", fresh=False)
+    assert capped["mode"] == "rules-only" and "per hour" in capped["note"] and calls == []
+    long_text = "Learn Python with CodeCraft Academy mentors. " * 80 + "Sign up today."
+    skipped, calls = _run_agent(monkeypatch, [], text=long_text)
+    assert skipped["mode"] == "rules-only" and "3,000 characters" in skipped["note"] and calls == []
+
+
+def test_status_reports_ai_budget(client, monkeypatch):
+    from app import agent
+    agent.budget.reset()
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    status = client.get("/api/status").json()
+    assert status["ai"] and status["model"] == "claude-haiku-5-5"
+    assert status["ai_budget"]["limit_usd"] == 1.0 and status["ai_budget"]["paused"] is None
 
 
 def test_agent_rewrite_with_invented_number_is_not_shown(monkeypatch):
@@ -288,8 +347,10 @@ def test_agent_falls_back_to_rules_only_on_api_error(monkeypatch):
         raise anthropic.APIStatusError("unavailable", response=httpx.Response(503, request=httpx.Request("POST", "https://api.anthropic.com")), body=None)
     class Fake:
         def __init__(self, **kw):
-            self.beta = NS(messages=NS(create=boom))
+            self.messages = NS(create=boom)
     from app import agent
+    agent.budget.reset()
+    agent.clear_cache()
     monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(anthropic, "Anthropic", Fake)
     result = agent.review_with_ai("LAST CHANCE!!! Sign up at CodeCraft Academy.", {"cta": "sign up"}, KIT,

@@ -79,7 +79,8 @@ class Term(BaseModel):
 @app.get("/api/status")
 def status():
     kit = store.get_kit()
-    return {"ai": agent.ai_available(), "model": agent.MODEL if agent.ai_available() else None,
+    on = agent.ai_available()
+    return {"ai": on, "model": agent.MODEL if on else None, "ai_budget": agent.budget.snapshot() if on else None,
             "brand": kit["brand"]["name"], "kit_version": kit["version"]}
 
 

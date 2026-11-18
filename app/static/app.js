@@ -65,9 +65,12 @@ $("#reset").addEventListener("click", async (e) => {
 async function loadStatus() {
   STATUS = await api("/api/status");
   const b = $("#ai-badge");
-  b.textContent = STATUS.ai ? `AI review: on (${STATUS.model})` : "AI review: rules-only mode";
-  b.className = "badge" + (STATUS.ai ? " on" : "");
-  b.title = STATUS.ai ? "Claude reviews tone, messaging and claims using Brand Kit tools." : "No AI key configured: exact rule and fact checks still run.";
+  const bud = STATUS.ai_budget, paused = bud && bud.paused;
+  b.textContent = !STATUS.ai ? "AI review: rules-only mode" : paused ? "AI review: paused (demo limit)" : `AI review: on (${STATUS.model})`;
+  b.className = "badge" + (STATUS.ai && !paused ? " on" : "");
+  b.title = !STATUS.ai ? "No AI key configured: exact rule and fact checks still run."
+    : (paused ? paused + " " : "Claude reviews tone, messaging and claims using Brand Kit tools. ")
+      + `Demo AI spend so far: $${bud.spent_usd.toFixed(4)} of $${bud.limit_usd.toFixed(2)} · ${bud.reviews} AI reviews, ${bud.reused} reused from cache.`;
 }
 async function kit(force = false) { if (!KIT || force) KIT = await api("/api/kit"); return KIT; }
 function ruleInfo(id) {
@@ -285,6 +288,9 @@ async function reviewView(id) {
         : el("div", { class: "small muted" }, open.length ? "No automatic rewrite available: use the fixes on the right or edit the text." : "Nothing to change. ✔"),
       ai ? el("details", {}, el("summary", {}, ai.mode === "ai" ? `How the Review Agent worked (${ai.tool_log.length} tool calls, ${ai.model})` : "About this review"),
         ai.note ? el("p", { class: "small muted" }, ai.note) : null,
+        ai.mode === "ai" ? el("p", { class: "small muted" }, ai.cached
+          ? "Reused the earlier AI review of this exact text and Brand Kit: no new API cost."
+          : `API cost of this review: $${(ai.cost_usd || 0).toFixed(4)}.`) : null,
         el("div", { class: "tl" }, ai.tool_log.map((t) => el("div", {}, `${t.ok ? "✔" : "✖"} ${t.tool}(${Object.values(t.input).map((v) => String(v).slice(0, 60)).join(", ")})`))),
         ai.rejected && ai.rejected.length ? el("p", { class: "small" }, `Policy guard rejected ${ai.rejected.length} AI finding(s) that did not cite a valid rule or quote.`) : null) : null),
     el("div", { class: "panel", style: "margin-top:14px" },

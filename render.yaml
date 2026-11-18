@@ -11,3 +11,9 @@ services:
         value: 3.11.9
       - key: BRANDGUARD_ANTHROPIC_API_KEY
         sync: false
+      - key: BRANDGUARD_MODEL
+        value: claude-haiku-5-5
+      - key: BRANDGUARD_AI_BUDGET_USD
+        value: "1.00"
+      - key: BRANDGUARD_AI_MAX_PER_HOUR
+        value: "30"
