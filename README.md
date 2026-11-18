@@ -1,8 +1,10 @@
 # 🛡️ BrandGuard
 
+[![CI](https://github.com/kartikmarwari700/brandguard/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikmarwari700/brandguard/actions/workflows/ci.yml)
+
 **Explainable brand governance before you hit publish.** Team **Cite or Flag** · CodeZen India 2026 · problem statement by Inkloom AI.
 
-**Live demo:** _link added after deployment_ · no sign-in needed · the demo brand **CodeCraft Academy** and all its facts are fictional.
+**Live demo: https://brandguard-fa7o.onrender.com** · no sign-in needed · the demo brand **CodeCraft Academy** and all its facts are fictional · free hosting: if the first load is slow, give it up to a minute.
 
 Content goes in before it is published (a post, an ad, an email or a Word document). BrandGuard checks it against the
 organisation's Brand Kit (rules, approved facts, terminology, brand colours). Every issue comes back with the **rule or fact
@@ -27,7 +29,7 @@ it breaks** and a **suggested correction that keeps the creator's message**, and
 | Rule checks (code) | Glossary variants and casing, hype, slang, pressure tactics, superlatives, guarantees, "click here", ALL-CAPS, sentence length, missing call to action |
 | Claim checks (code) | Every number is compared with approved facts: **supported** (shown as verified), **contradicted** (fix offered), **outdated** (expired fact, current figure offered) or **no source** |
 | Review Agent (AI) | With an API key, Claude plans further checks, calls Brand Kit tools (`search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite`) and proposes a full rewrite. Without a key the app runs in rules-only mode and stays fully usable |
-| Policy guard | AI findings must cite a rule returned by a tool and quote the text exactly; a rewrite must keep the call to action and brand name and add no unapproved numbers, otherwise it is not shown |
+| Policy guard | AI findings must cite a rule returned by a tool and quote the text exactly; AI findings are advisory (at most *major*: only exact checks in code can raise a *critical*, approval-blocking issue); an automatic fix must be publishable text, not an instruction or a placeholder; a rewrite must keep the call to action and brand name and add no unapproved numbers, otherwise it is not shown |
 | **Claim provenance (improvement I1, delivered)** | When a manager adds, edits or removes a fact, every unapproved draft is **re-checked automatically** (new version by "system"); approved content that relied on a changed, expired or removed fact gets a **provenance alert** (never silently rewritten); the Facts tab shows **where each fact is used** |
 | Workflow | Creator / Reviewer / Manager roles; accept fix, accept suggested version, edit, dismiss with reason (critical: Manager only), submit, comment, request changes, approve (critical open: Manager sign-off only); approved content is locked |
 | Traceability | Every change is a new version with a word-level diff; every action is in the audit log; dismissals per rule are counted on the Insights page |
@@ -71,7 +73,7 @@ pytest; GitHub Actions CI; deployed on Render.
 | Login with three roles | Role switch at the top right, every action role-checked and audited | Judges must use the product without signing in |
 | Agent tools `check_glossary`, `extract_claims`, `propose_fix`, `verify_intent` called by the LLM | These run in code before the agent; the agent calls `search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite` | Exact checks are cheaper and fully reliable in code; the AI is used only for judgment |
 | Claim provenance (I1) in Round 2 | Delivered as planned: claim labels, automatic re-check on Brand Kit changes, provenance alerts, fact usage | No change |
-| Seeded evaluation set in CI | 24 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
+| Seeded evaluation set in CI | 25 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
 
 ## Three improvements for Round 3
 
@@ -86,7 +88,7 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
 uvicorn app.main:app --reload      # http://127.0.0.1:8000
-python -m pytest -q                # 24 tests, no API key needed
+python -m pytest -q                # 25 tests, no API key needed
 ```
 
 AI review is optional: set `BRANDGUARD_ANTHROPIC_API_KEY` to enable the Claude Review Agent. The key is read only from this

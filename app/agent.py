@@ -54,6 +54,9 @@ How to work:
 2. Call lookup_fact for any claim you are unsure about.
 3. Call add_finding once per NEW problem. Do not repeat problems that the code already found.
    Every finding must cite a rule_id that search_rules returned, and quote text copied exactly from the content.
+   Your findings are advisory, so use severity major or minor. A suggested_fix with fix_kind "replace" must be
+   ready-to-publish text that replaces the quote: never an instruction and never a placeholder such as [date].
+   Use fix_kind "remove" to delete the quote, or "none" when the fix needs information you do not have.
 4. Finally call submit_rewrite with one improved version of the full content that fixes every finding (the code's and
    yours), keeps the creator's purpose, audience and call to action, keeps the brand name, and uses only numbers that are
    approved facts. If submit_rewrite reports problems, fix them and submit once more.
@@ -73,13 +76,17 @@ TOOLS = [
     {"name": "add_finding", "strict": True,
      "description": "Record one new problem. rule_id must come from search_rules; quote must be copied exactly from the content.",
      "input_schema": {"type": "object", "additionalProperties": False,
-                      "required": ["rule_id", "quote", "severity", "explanation", "suggested_fix"],
+                      "required": ["rule_id", "quote", "severity", "explanation", "fix_kind", "suggested_fix"],
                       "properties": {
                           "rule_id": {"type": "string"},
                           "quote": {"type": "string", "description": "Exact text from the content (may be empty for a missing element)"},
-                          "severity": {"type": "string", "enum": ["critical", "major", "minor"]},
+                          "severity": {"type": "string", "enum": ["major", "minor"]},
                           "explanation": {"type": "string", "description": "One or two plain sentences"},
-                          "suggested_fix": {"type": "string", "description": "Replacement text for the quote, or empty if none"}}}},
+                          "fix_kind": {"type": "string", "enum": ["replace", "remove", "none"],
+                                       "description": "replace: suggested_fix replaces the quote; remove: delete the quote; "
+                                                      "none: no automatic fix (put a short tip in suggested_fix)"},
+                          "suggested_fix": {"type": "string", "description": "For replace: exact ready-to-publish replacement "
+                                                                             "text. Otherwise a short tip or empty."}}}},
     {"name": "submit_rewrite", "strict": True,
      "description": "Submit the full improved content. Code checks it: call to action and brand name kept, no unapproved "
                     "numbers, no remaining rule violations. Returns ok or a list of problems.",
@@ -89,6 +96,10 @@ TOOLS = [
 
 
 API_KEY_VAR = "BRANDGUARD_ANTHROPIC_API_KEY"  # dedicated variable: never pick up credentials meant for other tools
+
+_PLACEHOLDER = re.compile(r"\[[^\]]*\]|\{[^}]*\}|<[^>]*>|\bTBD\b|\bX{2,}\b")
+_REMOVE = re.compile(r"^(remove|delete|drop|cut)\b[^.]*\.?$", re.I)
+_INSTRUCTION = re.compile(r"^(replace|rewrite|rephrase|add|change|consider|mention|specify|include)\b", re.I)
 
 
 def ai_available():
@@ -227,7 +238,7 @@ class _Run:
                 out[key] = result[key]
         return out
 
-    def add_finding(self, rule_id, quote, severity, explanation, suggested_fix):
+    def add_finding(self, rule_id, quote, severity, explanation, suggested_fix, fix_kind="replace"):
         if rule_id not in self.returned_ids:
             self.rejected.append({"rule_id": rule_id, "reason": "cited an id no tool returned"})
             return {"ok": False, "error": f"{rule_id} was not returned by search_rules; search first, then cite."}
@@ -237,12 +248,23 @@ class _Run:
             return {"ok": False, "error": "quote must be copied exactly from the content"}
         if any(f["rule_id"] == rule_id and f["quote"] == quote for f in self.rule_findings + self.ai_findings):
             return {"ok": False, "error": "already reported"}
+        # Policy guard: AI judgment is advisory. Only exact checks in code can raise a critical (approval-blocking) issue,
+        # and an automatic fix must be publishable text, not an instruction or a placeholder.
+        severity = "minor" if severity == "minor" else "major"
+        tip = (suggested_fix or "").strip()
+        fix, fix_note = None, None
+        if not quote:
+            fix_note = tip or None
+        elif fix_kind == "remove" or (fix_kind == "replace" and _REMOVE.match(tip)):
+            fix = ""
+        elif fix_kind == "replace" and tip and not _PLACEHOLDER.search(tip) and not _INSTRUCTION.match(tip):
+            fix = tip
+        else:
+            fix_note = tip or None
         self.ai_findings.append(engine._finding(
             rule_id, next((r["category"] for r in self.kit["rules"] if r["id"] == rule_id), "messaging"),
-            severity, start, start + len(quote), quote, explanation,
-            fix=suggested_fix if (quote and suggested_fix) else None,
-            fix_note=None if quote else (suggested_fix or None), source="ai"))
-        return {"ok": True}
+            severity, start, start + len(quote), quote, explanation, fix=fix, fix_note=fix_note, source="ai"))
+        return {"ok": True, "severity": severity, "automatic_fix": fix is not None}
 
     def submit_rewrite(self, text):
         check = engine.verify_intent(self.text, text, self.intent, self.kit)

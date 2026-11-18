@@ -288,6 +288,28 @@ def test_agent_policy_guard_keeps_only_cited_findings(monkeypatch):
     assert result["cost_usd"] == pytest.approx(3 * (2000 * 0.10 + 400 * 0.50) / 1e6)
 
 
+def test_agent_findings_are_advisory_and_fixes_are_publishable(monkeypatch):
+    script = [
+        NS(stop_reason="tool_use", content=[_tool("t1", "search_rules", query="tone hype claims")]),
+        NS(stop_reason="tool_use", content=[
+            _tool("t2", "add_finding", rule_id="TONE-01", quote="amazing", severity="critical", explanation="Hype.",
+                  fix_kind="replace", suggested_fix="Remove the word."),
+            _tool("t3", "add_finding", rule_id="TONE-01", quote="help you learn", severity="minor", explanation="Vague.",
+                  fix_kind="replace", suggested_fix="help you learn by [date]"),
+            _tool("t4", "add_finding", rule_id="TONE-01", quote="Our", severity="minor", explanation="x",
+                  fix_kind="replace", suggested_fix="Rephrase to sound warmer"),
+            _tool("t5", "add_finding", rule_id="TONE-01", quote="mentors", severity="minor", explanation="y",
+                  fix_kind="remove", suggested_fix="")]),
+        NS(stop_reason="end_turn", content=[]),
+    ]
+    result, _ = _run_agent(monkeypatch, script)
+    by_quote = {f["quote"]: f for f in result["findings"]}
+    assert by_quote["amazing"]["severity"] == "major" and by_quote["amazing"]["fix"] == ""   # capped, removal
+    assert by_quote["help you learn"]["fix"] is None and "[date]" in by_quote["help you learn"]["fix_note"]
+    assert by_quote["Our"]["fix"] is None and by_quote["mentors"]["fix"] == ""
+    assert engine.tidy("more than 300 hours last month, .") == "more than 300 hours last month."
+
+
 def test_agent_reuses_identical_review_without_new_cost(monkeypatch):
     from app import agent
     script = [NS(stop_reason="tool_use", content=[_tool("t1", "submit_rewrite", text="Our experienced mentors help you learn. Sign up at CodeCraft Academy.")])]

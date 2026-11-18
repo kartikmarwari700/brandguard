@@ -275,6 +275,7 @@ def tidy(text):
     """Clean up gaps left by removed phrases without changing the author's own punctuation."""
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"[ \t]+([.,!?])", r"\1", text)
+    text = re.sub(r",([.!?])", r"\1", text)
     text = re.sub(r"([.!?])[ \t]*\.(?!\.)", r"\1", text)
     return text.strip()
 
