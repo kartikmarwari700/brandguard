@@ -217,14 +217,30 @@ function diffWords(a, b) {
   const x = a.split(/(\s+)/), y = b.split(/(\s+)/);
   const n = x.length, m = y.length, L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
-  const out = []; let i = 0, j = 0;
+  const ops = []; let i = 0, j = 0;
   while (i < n && j < m) {
-    if (x[i] === y[j]) { out.push(x[i]); i++; j++; }
-    else if (L[i + 1][j] >= L[i][j + 1]) out.push(el("del", {}, x[i++]));
-    else out.push(el("ins", {}, y[j++]));
+    if (x[i] === y[j]) { ops.push(["=", x[i]]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) ops.push(["-", x[i++]]);
+    else ops.push(["+", y[j++]]);
   }
-  while (i < n) out.push(el("del", {}, x[i++]));
-  while (j < m) out.push(el("ins", {}, y[j++]));
+  while (i < n) ops.push(["-", x[i++]]);
+  while (j < m) ops.push(["+", y[j++]]);
+  // Group each run of changes as "removed words" then "added words", so a rewrite reads as two phrases, not confetti.
+  const out = []; let dels = [], adds = [];
+  const flush = () => {
+    const d = dels.join("").trim(), a = adds.join("").trim();
+    if (d) out.push(el("del", {}, d));
+    if (d && a) out.push(" ");
+    if (a) out.push(el("ins", {}, a));
+    dels = []; adds = [];
+  };
+  ops.forEach(([t, s], k) => {
+    if (t !== "=") return (t === "-" ? dels : adds).push(s);
+    const inRun = (dels.length || adds.length) && /^\s+$/.test(s) && ops[k + 1] && ops[k + 1][0] !== "=";
+    if (inRun) { dels.push(s); adds.push(s); return; }
+    flush(); out.push(s);
+  });
+  flush();
   return el("div", { class: "content diff" }, out);
 }
 

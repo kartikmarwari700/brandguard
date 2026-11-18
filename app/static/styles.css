@@ -59,7 +59,7 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 0 0 10px;
 .finding.dismissed { opacity: .55; border-left-color: #b9c0cc; }
 .finding .h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .finding .sev { font-weight: 800; font-size: 12px; text-transform: uppercase; }
-.rid { font-family: Consolas, monospace; font-size: 12px; background: var(--soft); padding: 1px 6px; border-radius: 4px; cursor: help; }
+.rid { font-family: Consolas, monospace; font-size: 12px; background: var(--soft); padding: 1px 6px; border-radius: 4px; cursor: help; white-space: nowrap; }
 .ai-tag { font-size: 10px; font-weight: 700; background: #f0e8ff; color: #6b3bd6; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
 .fix { color: var(--good); font-weight: 600; margin: 4px 0; }
 .quote { font-family: Consolas, monospace; font-size: 12px; background: var(--soft); padding: 0 4px; border-radius: 3px; }
