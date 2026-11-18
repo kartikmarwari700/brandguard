@@ -299,11 +299,14 @@ def test_agent_findings_are_advisory_and_fixes_are_publishable(monkeypatch):
             _tool("t4", "add_finding", rule_id="TONE-01", quote="Our", severity="minor", explanation="x",
                   fix_kind="replace", suggested_fix="Rephrase to sound warmer"),
             _tool("t5", "add_finding", rule_id="TONE-01", quote="mentors", severity="minor", explanation="y",
-                  fix_kind="remove", suggested_fix="")]),
+                  fix_kind="remove", suggested_fix=""),
+            _tool("t6", "add_finding", rule_id="TONE-01", quote="amazing mentors", severity="major", explanation="dup",
+                  fix_kind="none", suggested_fix="")]),
         NS(stop_reason="end_turn", content=[]),
     ]
     result, _ = _run_agent(monkeypatch, script)
     by_quote = {f["quote"]: f for f in result["findings"]}
+    assert "amazing mentors" not in by_quote and len(result["findings"]) == 4  # overlapping repeat of a rule is refused
     assert by_quote["amazing"]["severity"] == "major" and by_quote["amazing"]["fix"] == ""   # capped, removal
     assert by_quote["help you learn"]["fix"] is None and "[date]" in by_quote["help you learn"]["fix_note"]
     assert by_quote["Our"]["fix"] is None and by_quote["mentors"]["fix"] == ""

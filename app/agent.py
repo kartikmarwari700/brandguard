@@ -246,8 +246,10 @@ class _Run:
         if quote and start < 0:
             self.rejected.append({"rule_id": rule_id, "reason": "quote not found in content"})
             return {"ok": False, "error": "quote must be copied exactly from the content"}
-        if any(f["rule_id"] == rule_id and f["quote"] == quote for f in self.rule_findings + self.ai_findings):
-            return {"ok": False, "error": "already reported"}
+        end = start + len(quote)
+        if any(f["rule_id"] == rule_id and (f["quote"] == quote or (quote and f["start"] < end and start < f["end"]))
+               for f in self.rule_findings + self.ai_findings):
+            return {"ok": False, "error": "already reported: overlaps an existing finding for the same rule"}
         # Policy guard: AI judgment is advisory. Only exact checks in code can raise a critical (approval-blocking) issue,
         # and an automatic fix must be publishable text, not an instruction or a placeholder.
         severity = "minor" if severity == "minor" else "major"

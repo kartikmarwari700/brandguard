@@ -170,18 +170,22 @@ function segments(content, findings, verified) {
   const spans = [];
   findings.filter((f) => f.status === "open" && f.end > f.start).forEach((f) => spans.push({ s: f.start, e: f.end, cls: `hl-${f.severity}`, id: f.id, title: f.message }));
   verified.forEach((v) => { const i = content.indexOf(v.quote); if (i >= 0) spans.push({ s: i, e: i + v.quote.length, cls: "hl-ok", title: `Verified by ${v.fact_id}: ${v.statement}` }); });
-  spans.sort((a, b) => a.s - b.s);
-  const out = []; let pos = 0;
-  for (const sp of spans) {
-    if (sp.s < pos) continue;
-    out.push(content.slice(pos, sp.s));
-    out.push(el("span", { class: `hl ${sp.cls}`, title: sp.title, "data-fid": sp.id || "", onclick: () => {
+  // Overlapping findings: cut the text at every boundary and show the most severe (then most specific) finding
+  // for each piece, so a long-sentence hint never hides a critical claim inside it.
+  const rank = { "hl-critical": 0, "hl-major": 1, "hl-ok": 2, "hl-minor": 3 };
+  const cuts = [...new Set([0, content.length, ...spans.flatMap((sp) => [sp.s, sp.e])])].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1], piece = content.slice(a, b);
+    const cover = spans.filter((sp) => sp.s <= a && sp.e >= b)
+      .sort((x, y) => rank[x.cls] - rank[y.cls] || (x.e - x.s) - (y.e - y.s));
+    if (!cover.length) { out.push(piece); continue; }
+    const sp = cover[0];
+    out.push(el("span", { class: `hl ${sp.cls}`, title: cover.map((c) => c.title).join("\n"), "data-fid": sp.id || "", onclick: () => {
       if (!sp.id) return; const card = document.getElementById(`f-${sp.id}`);
       if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); card.animate([{ background: "#e8eeff" }, { background: "#fff" }], 1200); }
-    } }, content.slice(sp.s, sp.e)));
-    pos = sp.e;
+    } }, piece));
   }
-  out.push(content.slice(pos));
   return out;
 }
 
