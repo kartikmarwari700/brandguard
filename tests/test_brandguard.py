@@ -184,3 +184,114 @@ def test_only_manager_edits_brand_kit_and_new_fact_is_used(client):
         "intent": {"cta": "apply"}}).json()["id"]
     verified = client.get(f"/api/submissions/{sid}").json()["current"]["verified"]
     assert verified and verified[0]["fact_id"] == "FACT-08"
+
+
+# ---------------------------------------------------------------- claim provenance (I1)
+
+def test_fact_update_rechecks_drafts_and_alerts_approved_content(client):
+    subs = {s["title"]: s["id"] for s in client.get("/api/submissions").json()}
+    ad, insta = subs["Ad: weekend workshop"], subs["Instagram: Winter Bootcamp launch"]
+    client.post(f"/api/submissions/{ad}/submit", headers=H("creator"))
+    assert client.post(f"/api/submissions/{ad}/approve", headers=H("reviewer"), json={"text": ""}).json()["status"] == "approved"
+
+    # a manager changes two facts: the student count and the rating
+    assert client.put("/api/kit/facts/FACT-01", headers=H("creator"), json={"value": 40000}).status_code == 403
+    client.put("/api/kit/facts/FACT-01", headers=H("manager"), json={"value": 40000, "statement": "40,000 students have enrolled."})
+    client.put("/api/kit/facts/FACT-03", headers=H("manager"), json={"value": 4.7})
+
+    draft = client.get(f"/api/submissions/{insta}").json()
+    assert draft["versions"][-1]["author"] == "system" and "Re-checked automatically" in draft["versions"][-1]["note"]
+    number = next(f for f in draft["current"]["findings"] if f["rule_id"] == "CLAIM-01")
+    assert number["fix"] == "40,000"
+
+    approved = client.get(f"/api/submissions/{ad}").json()
+    assert approved["status"] == "approved" and len(approved["versions"]) == 1  # approved content is never rewritten
+    assert approved["provenance_alerts"] and "changed from 4.6 to 4.7" in approved["provenance_alerts"][0]
+    assert next(s for s in client.get("/api/submissions").json() if s["id"] == ad)["alerts"] == 1
+    usage = client.get("/api/kit/usage").json()
+    assert any(u["id"] == ad for u in usage["FACT-03"])
+
+
+# ---------------------------------------------------------------- Review Agent with a simulated model
+
+from types import SimpleNamespace as NS  # noqa: E402
+
+
+def _tool(id_, name, **inp):
+    return NS(type="tool_use", id=id_, name=name, input=inp)
+
+
+def _fake_client(script, calls):
+    def create(**kwargs):
+        calls.append(kwargs)
+        return script.pop(0)
+    class Fake:
+        def __init__(self, **kw):
+            self.beta = NS(messages=NS(create=create))
+    return Fake
+
+
+def _run_agent(monkeypatch, script):
+    import anthropic
+
+    from app import agent
+    calls = []
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(anthropic, "Anthropic", _fake_client(script, calls))
+    text = "Our amazing mentors help you learn. Sign up at CodeCraft Academy."
+    intent = {"purpose": "p", "audience": "a", "cta": "sign up"}
+    findings, verified = engine.run_rule_checks(text, KIT, intent, today=TODAY)
+    return agent.review_with_ai(text, intent, KIT, findings, verified), calls
+
+
+def test_agent_policy_guard_keeps_only_cited_findings(monkeypatch):
+    script = [
+        NS(stop_reason="tool_use", content=[_tool("t1", "add_finding", rule_id="TONE-01", quote="amazing", severity="major",
+                                                  explanation="Hype word.", suggested_fix="")]),
+        NS(stop_reason="tool_use", content=[_tool("t2", "search_rules", query="tone hype")]),
+        NS(stop_reason="tool_use", content=[
+            _tool("t3", "add_finding", rule_id="TONE-01", quote="amazing", severity="major", explanation="Hype word.", suggested_fix="experienced"),
+            _tool("t4", "add_finding", rule_id="TONE-01", quote="not in the text", severity="minor", explanation="x", suggested_fix=""),
+            _tool("t5", "submit_rewrite", text="Our experienced mentors help you learn. Sign up at CodeCraft Academy.")]),
+        NS(stop_reason="end_turn", content=[NS(type="text", text="Done.")]),
+    ]
+    result, calls = _run_agent(monkeypatch, script)
+    assert result["mode"] == "ai"
+    assert [f["rule_id"] for f in result["findings"]] == ["TONE-01"] and result["findings"][0]["source"] == "ai"
+    assert result["findings"][0]["fix"] == "experienced"
+    assert {r["reason"] for r in result["rejected"]} == {"cited an id no tool returned", "quote not found in content"}
+    assert result["rewrite"].startswith("Our experienced mentors") and result["rewrite_check"]["ok"]
+    assert [t["tool"] for t in result["tool_log"]] == ["add_finding", "search_rules", "add_finding", "add_finding", "submit_rewrite"]
+    first = calls[0]
+    assert first["model"] == "claude-opus-5-5" and first["output_config"] == {"effort": "low"}
+    assert first["fallbacks"] == "default" and "server-side-fallback-2026-07-01" in first["betas"]
+    # tool results go back in one user message, matched by id
+    batches = [[b["tool_use_id"] for b in m["content"]] for m in calls[-1]["messages"]
+               if m["role"] == "user" and isinstance(m["content"], list)]
+    assert batches == [["t1"], ["t2"], ["t3", "t4", "t5"]]
+
+
+def test_agent_rewrite_with_invented_number_is_not_shown(monkeypatch):
+    script = [
+        NS(stop_reason="tool_use", content=[_tool("t1", "submit_rewrite", text="Join 99,999 learners at CodeCraft Academy. Sign up today.")]),
+        NS(stop_reason="end_turn", content=[]),
+    ]
+    result, _ = _run_agent(monkeypatch, script)
+    assert "99,999" not in result["rewrite"] and result["rewrite_check"]["ok"]
+
+
+def test_agent_falls_back_to_rules_only_on_api_error(monkeypatch):
+    import anthropic
+    import httpx
+
+    def boom(**kwargs):
+        raise anthropic.APIStatusError("unavailable", response=httpx.Response(503, request=httpx.Request("POST", "https://api.anthropic.com")), body=None)
+    class Fake:
+        def __init__(self, **kw):
+            self.beta = NS(messages=NS(create=boom))
+    from app import agent
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(anthropic, "Anthropic", Fake)
+    result = agent.review_with_ai("LAST CHANCE!!! Sign up at CodeCraft Academy.", {"cta": "sign up"}, KIT,
+                                  *engine.run_rule_checks("LAST CHANCE!!! Sign up at CodeCraft Academy.", KIT, {"cta": "sign up"}))
+    assert result["mode"] == "rules-only" and "503" in result["note"] and "LAST CHANCE" not in result["rewrite"]

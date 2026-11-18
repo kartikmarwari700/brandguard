@@ -110,6 +110,7 @@ async function inbox() {
         el("span", { class: "muted small" }, `${s.channel} · v${s.version} · ${when(s.updated_at)}`),
         el("span", { class: "p" }, s.preview + (s.preview.length >= 140 ? "…" : "")),
         counts(s.open_counts, s.verified),
+        s.alerts ? el("span", { class: "cnt c-major" }, `⚠ ${s.alerts} provenance alert${s.alerts > 1 ? "s" : ""}: a cited fact changed or expired`) : null,
         s.ai_status === "running" ? el("span", { class: "small muted" }, el("span", { class: "spinner" }), "AI review running…") : null)))
       : el("div", { class: "empty panel" }, "No content yet. Click “+ New content”."));
 }
@@ -264,6 +265,12 @@ async function reviewView(id) {
         el("div", {}, el("h1", {}, sub.title), el("span", { class: "muted small" }, `${sub.channel} · version ${cur.n} by ${cap(cur.author)} · checked against Brand Kit v${cur.kit_version}`)),
         el("span", { class: `pill st-${sub.status}` }, STATUS_TEXT[sub.status])),
       el("div", { class: "intent" }, el("b", {}, "Intent · "), `Purpose: ${sub.intent.purpose || "—"} · Audience: ${sub.intent.audience || "—"} · Call to action: ${sub.intent.cta || "—"}`),
+      sub.provenance_alerts.length ? el("div", { class: "alert" },
+        el("b", {}, "⚠ Provenance alert: "), sub.status === "approved" ? "this approved content relies on a fact that is no longer valid." : "a fact this draft relies on is no longer valid.",
+        el("ul", {}, sub.provenance_alerts.map((a) => el("li", {}, a))),
+        sub.status !== "approved" ? el("button", { class: "primary", onclick: async () => {
+          try { await post(`/api/submissions/${sub.id}/recheck`); toast("Re-checked against the latest Brand Kit."); route(); } catch (e) { toast(e.message, true); }
+        } }, "Re-check now") : el("div", { class: "small" }, "Create updated content from “+ New content” before publishing this again.")) : null,
       el("div", { class: "row", style: "margin-bottom:6px" }, counts(sub.approval.open_counts, cur.verified.length)),
       el("div", { class: "content" }, segments(cur.content, cur.findings, cur.verified)),
       el("h3", {}, "Suggested version"),
@@ -295,7 +302,7 @@ async function reviewView(id) {
       open.length ? open.map((f) => findingCard(sub, f)) : el("div", { class: "verified" }, "✔ No open issues. This content follows the Brand Kit."),
       running ? el("div", { class: "small muted" }, el("span", { class: "spinner" }), "More findings may appear when the AI review finishes.") : null,
       cur.verified.length ? el("div", {}, el("h3", {}, "Verified claims"), cur.verified.map((v) =>
-        el("div", { class: "verified" }, "✔ “", v.quote, "” matches ", el("span", { class: "rid", title: ruleInfo(v.fact_id) }, v.fact_id), ` (${v.source}, valid until ${v.valid_until})`))) : null,
+        el("div", { class: "verified" }, "✔ “", v.quote, "” matches ", el("span", { class: "rid", title: ruleInfo(v.fact_id) }, v.fact_id), ` (${v.source}, valid until ${v.valid_until}; checked against Brand Kit v${cur.kit_version})`))) : null,
       dismissed.length ? el("details", {}, el("summary", {}, `Dismissed (${dismissed.length})`), dismissed.map((f) => findingCard(sub, f))) : null));
 
   return el("div", {}, el("div", { class: "row", style: "margin-bottom:10px" }, el("a", { href: "#/" }, "← Inbox")),
@@ -317,9 +324,20 @@ async function kitView() {
       k.rules.map((r) => el("tr", {}, el("td", {}, el("span", { class: "rid" }, r.id)), el("td", {}, el("b", {}, r.title), el("div", { class: "small muted" }, r.text)),
         el("td", { class: `c-${r.severity}` }, r.severity), el("td", { class: "small" }, r.good ? el("div", { class: "c-ok" }, "✔ ", r.good) : null, r.bad ? el("div", { class: "c-critical" }, "✖ ", r.bad) : null), el("td", {}, del("rules", r.id)))));
   } else if (kitTab === "facts") {
-    body = el("table", {}, el("tr", {}, el("th", {}, "ID"), el("th", {}, "Approved fact"), el("th", {}, "Source / owner"), el("th", {}, "Valid until"), el("th", {}, "")),
+    const usage = await api("/api/kit/usage");
+    const edit = (f) => isMgr ? el("button", { class: "small", onclick: () => {
+      const inp = { statement: el("input", { value: f.statement }), value: el("input", { value: f.value }), valid_until: el("input", { value: f.valid_until }) };
+      modal(el("h2", {}, `Update ${f.id}`), el("p", { class: "small muted" }, "Every unapproved draft is re-checked automatically, and approved content that relied on the old value gets a provenance alert."),
+        el("label", {}, "Statement"), inp.statement, el("div", { class: "grid2" }, el("div", {}, el("label", {}, "Value"), inp.value), el("div", {}, el("label", {}, "Valid until (YYYY-MM-DD)"), inp.valid_until)),
+        el("div", { class: "actions" }, el("button", { class: "primary", onclick: async () => {
+          try { await api(`/api/kit/facts/${f.id}`, { method: "PUT", body: JSON.stringify({ statement: inp.statement.value, value: Number(inp.value.value), valid_until: inp.valid_until.value }) }); closeModal(); toast("Fact updated. Drafts were re-checked automatically."); route(); } catch (e) { toast(e.message, true); }
+        } }, "Save"), el("button", { onclick: closeModal }, "Cancel")));
+    } }, "Edit") : null;
+    body = el("table", {}, el("tr", {}, el("th", {}, "ID"), el("th", {}, "Approved fact"), el("th", {}, "Source / owner"), el("th", {}, "Valid until"), el("th", {}, "Used in"), el("th", {}, "")),
       k.facts.map((f) => el("tr", {}, el("td", {}, el("span", { class: "rid" }, f.id)), el("td", {}, f.statement, el("div", { class: "small muted" }, `Value ${f.value} ${f.unit} · keywords: ${f.keywords.join(", ")}`)),
-        el("td", { class: "small" }, f.source, el("div", { class: "muted" }, f.owner)), el("td", { class: f.valid_until < today ? "c-critical" : "" }, f.valid_until, f.valid_until < today ? " (expired)" : ""), el("td", {}, del("facts", f.id)))));
+        el("td", { class: "small" }, f.source, el("div", { class: "muted" }, f.owner)), el("td", { class: f.valid_until < today ? "c-critical" : "" }, f.valid_until, f.valid_until < today ? " (expired)" : ""),
+        el("td", { class: "small" }, (usage[f.id] || []).length ? (usage[f.id] || []).map((u) => el("div", {}, el("a", { href: `#/s/${u.id}` }, u.title), el("span", { class: "muted" }, ` (${STATUS_TEXT[u.status]})`))) : el("span", { class: "muted" }, "—")),
+        el("td", {}, el("div", { class: "row" }, edit(f), del("facts", f.id))))));
   } else if (kitTab === "glossary") {
     body = el("table", {}, el("tr", {}, el("th", {}, "ID"), el("th", {}, "Use"), el("th", {}, "Instead of"), el("th", {}, "Note"), el("th", {}, "")),
       k.glossary.map((t) => el("tr", {}, el("td", {}, el("span", { class: "rid" }, t.id)), el("td", { class: "c-ok" }, el("b", {}, t.preferred)), el("td", { class: "c-critical" }, t.variants.join(", ")), el("td", { class: "small" }, t.note), el("td", {}, del("glossary", t.id)))));
@@ -337,7 +355,7 @@ async function kitView() {
       el("div", { class: "grid2" }, fields.map(([k2, label]) => el("div", {}, el("label", {}, label), inputs[k2]))),
       el("div", { class: "actions" }, el("button", { class: "primary", onclick: async () => {
         const body2 = Object.fromEntries(Object.entries(inputs).map(([k2, i]) => [k2, ["keywords", "variants", "patterns"].includes(k2) ? i.value.split(",") : i.value]));
-        try { await post(`/api/kit/${kitTab}`, body2); toast("Added. New content will be checked against it."); route(); } catch (e) { toast(e.message, true); }
+        try { await post(`/api/kit/${kitTab}`, body2); toast("Added. Open drafts were re-checked automatically."); route(); } catch (e) { toast(e.message, true); }
       } }, "Add")));
   }
   return el("div", {},

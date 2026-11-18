@@ -96,6 +96,24 @@ def add_kit_item(kind: str, body: dict, x_role: Optional[str] = Header(None)):
     return store.add_kit_item(kind, model(**body).model_dump(), role_of(x_role))
 
 
+class FactPatch(BaseModel):
+    statement: Optional[str] = Field(None, max_length=300)
+    value: Optional[float] = None
+    valid_until: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    source: Optional[str] = Field(None, max_length=120)
+    owner: Optional[str] = Field(None, max_length=60)
+
+
+@app.put("/api/kit/facts/{fact_id}")
+def update_fact(fact_id: str, body: FactPatch, x_role: Optional[str] = Header(None)):
+    return store.update_fact(fact_id, body.model_dump(), role_of(x_role))
+
+
+@app.get("/api/kit/usage")
+def fact_usage():
+    return store.fact_usage()
+
+
 @app.delete("/api/kit/{kind}/{item_id}")
 def delete_kit_item(kind: str, item_id: str, x_role: Optional[str] = Header(None)):
     if kind not in ("facts", "rules", "glossary"):
@@ -140,6 +158,12 @@ def apply_rewrite(sid: int, x_role: Optional[str] = Header(None)):
 @app.post("/api/submissions/{sid}/edit")
 def edit(sid: int, body: TextBody, x_role: Optional[str] = Header(None)):
     store.edit_content(sid, body.text, role_of(x_role))
+    return store.get_submission(sid)
+
+
+@app.post("/api/submissions/{sid}/recheck")
+def recheck(sid: int, x_role: Optional[str] = Header(None)):
+    store.recheck(sid, role_of(x_role))
     return store.get_submission(sid)
 
 

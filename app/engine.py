@@ -197,7 +197,7 @@ def check_claims(text, kit, taken, today=None):
         span = (claim["start"], claim["start"] + len(claim["number_text"]))
         if result["status"] == "supported":
             verified.append({"quote": claim["quote"], "fact_id": fact["id"], "statement": fact["statement"],
-                             "source": fact["source"], "valid_until": fact["valid_until"]})
+                             "value": fact["value"], "source": fact["source"], "valid_until": fact["valid_until"]})
         elif result["status"] == "contradicted":
             fix = _format_like(claim["number_text"], fact["value"])
             findings.append(_finding("CLAIM-01", "claims", "critical", *span, claim["number_text"],

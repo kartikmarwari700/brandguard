@@ -28,6 +28,7 @@ it breaks** and a **suggested correction that keeps the creator's message**, and
 | Claim checks (code) | Every number is compared with approved facts: **supported** (shown as verified), **contradicted** (fix offered), **outdated** (expired fact, current figure offered) or **no source** |
 | Review Agent (AI) | With an API key, Claude plans further checks, calls Brand Kit tools (`search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite`) and proposes a full rewrite. Without a key the app runs in rules-only mode and stays fully usable |
 | Policy guard | AI findings must cite a rule returned by a tool and quote the text exactly; a rewrite must keep the call to action and brand name and add no unapproved numbers, otherwise it is not shown |
+| **Claim provenance (improvement I1, delivered)** | When a manager adds, edits or removes a fact, every unapproved draft is **re-checked automatically** (new version by "system"); approved content that relied on a changed, expired or removed fact gets a **provenance alert** (never silently rewritten); the Facts tab shows **where each fact is used** |
 | Workflow | Creator / Reviewer / Manager roles; accept fix, accept suggested version, edit, dismiss with reason (critical: Manager only), submit, comment, request changes, approve (critical open: Manager sign-off only); approved content is locked |
 | Traceability | Every change is a new version with a word-level diff; every action is in the audit log; dismissals per rule are counted on the Insights page |
 
@@ -60,14 +61,14 @@ pytest; GitHub Actions CI; deployed on Render.
 | React (Vite) + Tailwind frontend | One FastAPI app serving a plain HTML/CSS/JS page | One service to deploy and nothing to build: faster to ship and more reliable for judges in the 72-hour window |
 | Login with three roles | Role switch at the top right, every action role-checked and audited | Judges must use the product without signing in |
 | Agent tools `check_glossary`, `extract_claims`, `propose_fix`, `verify_intent` called by the LLM | These run in code before the agent; the agent calls `search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite` | Exact checks are cheaper and fully reliable in code; the AI is used only for judgment |
-| Claim provenance as a Round 2 improvement | Claim checks (supported / contradicted / outdated / no source) are part of the core | The organisers' brief puts approved facts at the centre of the workflow |
-| Seeded evaluation set in CI | 16 automated tests on fixed sample content in CI | Same purpose; precision/recall reporting moves to Round 3 |
+| Claim provenance (I1) in Round 2 | Delivered as planned: claim labels, automatic re-check on Brand Kit changes, provenance alerts, fact usage | No change |
+| Seeded evaluation set in CI | 20 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
 
 ## Three improvements for Round 3
 
-1. **Claim provenance ledger:** a page per approved fact showing every draft that uses it; when a fact expires or changes, affected drafts and approved content are re-flagged automatically, and fact owners get a review queue.
-2. **Guideline Clarity Score:** turn the dismissal data already collected into a score per rule, with the dismissal reasons grouped and an AI-suggested clearer rewrite of the rule for the brand manager to approve.
-3. **Visual identity and accessibility checks for images:** upload a poster or social image; check colours against the brand palette, text contrast against WCAG 4.5:1, and missing or weak alt text (with a suggested alt text), shown with the same cited, explained findings.
+1. **Guideline Clarity Score (I2 from the plan):** turn the accept/dismiss data already being collected into a score per rule, group the dismissal reasons, and let the Review Agent draft a clearer version of a confusing rule for the brand manager to approve, so the guideline is fixed, not just the content.
+2. **Visual identity and accessibility checks for images (I3 from the plan):** upload a poster or social image; check its colours against the brand palette, text contrast against WCAG 4.5:1, and missing or weak alt text (with a suggested alt text), reported as the same cited, explained findings with accept/dismiss.
+3. **Brand Kit import from existing guidelines:** upload an existing brand guideline PDF or Word document; the agent extracts candidate rules, glossary terms and facts with the page they came from, and a manager confirms each one before it enters the Brand Kit. This removes the biggest setup cost for a real organisation.
 
 ## Run locally
 
@@ -76,7 +77,7 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
 uvicorn app.main:app --reload      # http://127.0.0.1:8000
-python -m pytest -q                # 16 tests, rules-only mode
+python -m pytest -q                # 20 tests, no API key needed
 ```
 
 AI review is optional: set `BRANDGUARD_ANTHROPIC_API_KEY` to enable the Claude Review Agent. The key is read only from this

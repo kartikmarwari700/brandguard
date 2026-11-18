@@ -77,7 +77,71 @@ def save_kit(kit, role, action, detail):
     data = {k: v for k, v in kit.items() if k != "version"}
     q("UPDATE kit SET data = ?, version = version + 1 WHERE id = 1", (json.dumps(data),))
     audit(role, action, None, detail)
+    recheck_open_content(detail)
     return get_kit()
+
+
+def recheck_open_content(reason):
+    """Claim provenance: when the Brand Kit changes, every unapproved draft is checked again automatically."""
+    version = get_kit()["version"]
+    for sub in q("SELECT id FROM submissions WHERE status != 'approved'"):
+        cur = _current(sub["id"])
+        if cur["kit_version"] < version:
+            create_version(sub["id"], cur["content"], "system", f"Re-checked automatically: Brand Kit v{version} ({reason})")
+            audit("system", "submission.recheck", sub["id"], f"Brand Kit v{version}: {reason}")
+
+
+def recheck(submission_id, role):
+    _require(role, ("creator", "reviewer", "manager"), "re-check content")
+    _editable(submission_id)
+    cur = _current(submission_id)
+    audit(role, "submission.recheck", submission_id, "Re-checked against the latest Brand Kit and today's date")
+    return create_version(submission_id, cur["content"], role, "Re-checked against the latest Brand Kit")
+
+
+def update_fact(fact_id, patch, role):
+    if role != "manager":
+        raise WorkflowError("Only a manager can change the Brand Kit.", 403)
+    kit = get_kit()
+    fact = next((f for f in kit["facts"] if f["id"] == fact_id), None)
+    if not fact:
+        raise WorkflowError("Fact not found.", 404)
+    before = f"{fact['value']} {fact['unit']}, valid until {fact['valid_until']}"
+    for key in ("statement", "value", "valid_until", "source", "owner"):
+        if patch.get(key) not in (None, ""):
+            fact[key] = patch[key]
+    if isinstance(fact["value"], float) and fact["value"].is_integer():
+        fact["value"] = int(fact["value"])
+    after = f"{fact['value']} {fact['unit']}, valid until {fact['valid_until']}"
+    return save_kit(kit, role, "kit.update_facts", f"{fact_id} changed: {before} → {after}")
+
+
+def provenance_alerts(verified, kit):
+    """Verified claims whose approved fact has since changed, expired or been removed."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    facts = {f["id"]: f for f in kit["facts"]}
+    alerts = []
+    for v in verified:
+        fact = facts.get(v["fact_id"])
+        if fact is None:
+            alerts.append(f"“{v['quote']}” relied on {v['fact_id']}, which was removed from the Brand Kit.")
+        elif fact["valid_until"] < today:
+            alerts.append(f"“{v['quote']}” relied on {v['fact_id']}, which expired on {fact['valid_until']}.")
+        elif "value" in v and float(fact["value"]) != float(v["value"]):
+            alerts.append(f"“{v['quote']}” relied on {v['fact_id']}, which changed from {v['value']} to {fact['value']}.")
+    return alerts
+
+
+def fact_usage():
+    """Which current content relies on each approved fact (verified claims and fact-based findings)."""
+    usage = {}
+    for sub in q("SELECT id, title, status FROM submissions"):
+        cur = _current(sub["id"])
+        cited = {v["fact_id"] for v in json.loads(cur["verified"])}
+        cited |= {c for f in json.loads(cur["findings"]) for c in f["cited"] if c.startswith("FACT")}
+        for fid in cited:
+            usage.setdefault(fid, []).append({"id": sub["id"], "title": sub["title"], "status": sub["status"]})
+    return usage
 
 
 def add_kit_item(kind, item, role):
@@ -203,7 +267,10 @@ def get_submission(submission_id):
     cur = _current(submission_id)
     findings, ai = _all_findings(cur, _dismissed(submission_id))
     versions = q("SELECT n, content, author, note, created_at FROM versions WHERE submission_id = ? ORDER BY n", (submission_id,))
+    kit = get_kit()
     return {
+        "provenance_alerts": provenance_alerts(json.loads(cur["verified"]), kit),
+        "kit_version_now": kit["version"],
         "id": sub["id"], "title": sub["title"], "channel": sub["channel"], "intent": json.loads(sub["intent"]),
         "status": sub["status"], "created_at": sub["created_at"], "updated_at": sub["updated_at"],
         "current": {"n": cur["n"], "content": cur["content"], "author": cur["author"], "kit_version": cur["kit_version"],
@@ -219,6 +286,7 @@ def get_submission(submission_id):
 
 def list_submissions():
     out = []
+    kit = get_kit()
     for sub in q("SELECT * FROM submissions ORDER BY updated_at DESC, id DESC"):
         cur = _current(sub["id"])
         findings, _ = _all_findings(cur, _dismissed(sub["id"]))
@@ -226,6 +294,7 @@ def list_submissions():
         out.append({"id": sub["id"], "title": sub["title"], "channel": sub["channel"], "status": sub["status"],
                     "version": cur["n"], "updated_at": sub["updated_at"], "open_counts": state["open_counts"],
                     "verified": len(json.loads(cur["verified"])), "ai_status": cur["ai_status"],
+                    "alerts": len(provenance_alerts(json.loads(cur["verified"]), kit)),
                     "preview": cur["content"][:140]})
     return out
 

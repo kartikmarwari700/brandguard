@@ -81,6 +81,8 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; }
 #toast div { background: #1a1f2b; color: #fff; padding: 10px 16px; border-radius: 8px; margin-top: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.2); max-width: 90vw; }
 #toast div.err { background: var(--bad); }
+.alert { background: var(--major-soft); border: 1px solid #f3c58f; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+.alert ul { margin: 4px 0 8px 18px; padding: 0; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 16px; }
 .how li { margin: 6px 0; }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
