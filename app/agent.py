@@ -9,7 +9,7 @@ BRANDGUARD_ANTHROPIC_API_KEY. Without it the agent runs in rules-only mode, so
 the product still works end to end.
 
 Cost control (the demo runs on a small, fixed API budget):
-- Claude Haiku 5.5 at low effort, a short tool loop and a per-response token cap;
+- Claude Haiku 5.5 (medium effort), a short tool loop and a per-response token cap;
 - prompt caching on the shared system prompt and the growing conversation;
 - identical reviews are reused instead of paid for twice (same text, intent, Brand Kit, model and day);
 - a spend meter computed from every response's token usage stops AI review at BRANDGUARD_AI_BUDGET_USD,
@@ -34,7 +34,9 @@ log = logging.getLogger("brandguard.agent")
 MODEL = os.environ.get("BRANDGUARD_MODEL", "claude-haiku-5-5")
 MAX_TOOL_CALLS = 8
 MAX_TURNS = 6
-MAX_TOKENS = 4000      # per response; thinking counts toward it
+MAX_TOKENS = 6000      # per response; thinking counts toward it
+EFFORT = "medium"      # Haiku 5.5 default; "low" saved little and produced weaker rewrites
+MAX_REWRITES = 3       # submit_rewrite attempts per review
 AI_MAX_CHARS = 3000    # longer texts get rule checks only
 CACHE_SIZE = 256
 
@@ -58,9 +60,12 @@ How to work:
    ready-to-publish text that replaces the quote: never an instruction and never a placeholder such as [date].
    Use fix_kind "remove" to delete the quote, or "none" when the fix needs information you do not have.
 4. Finally call submit_rewrite with one improved version of the full content that fixes every finding (the code's and
-   yours), keeps the creator's purpose, audience and call to action, keeps the brand name, and uses only numbers that are
-   approved facts. If submit_rewrite reports problems, fix them and submit once more.
-Be concise. Do not invent facts, rules, statistics or offers. If the content is already good, say so and submit it unchanged."""
+   yours, including minor ones), keeps the creator's purpose, audience and call to action, keeps the brand name, and
+   uses only numbers that are approved facts. Write it as polished, natural copy in the brand voice that a brand manager
+   could publish as it is: no rhetorical tricks, notes, brackets or placeholders. Keep it about as long as the original.
+   Add nothing that is not in the original content or the Brand Kit: no new offers, services, features, dates or claims.
+   If submit_rewrite reports problems, fix them and submit again.
+Do not invent facts, rules, statistics or offers. If the content is already good, say so and submit it unchanged."""
 
 TOOLS = [
     {"name": "search_rules", "strict": True,
@@ -206,6 +211,7 @@ class _Run:
         self.returned_ids = {f["rule_id"] for f in rule_findings}
         self.ai_findings, self.rejected, self.tool_log = [], [], []
         self.rewrite, self.rewrite_check = None, None
+        self.attempts, self.clean = 0, False
 
     # ---- tools
     def search_rules(self, query):
@@ -269,12 +275,22 @@ class _Run:
         return {"ok": True, "severity": severity, "automatic_fix": fix is not None}
 
     def submit_rewrite(self, text):
+        """Blocking problems (intent lost, unapproved numbers, critical/major rules) decide whether the rewrite may be
+        shown. Minor rules and the agent's own unaddressed findings are fed back so it can polish, without blocking."""
+        self.attempts += 1
         check = engine.verify_intent(self.text, text, self.intent, self.kit)
         remaining, _ = engine.run_rule_checks(text, self.kit, self.intent)
-        serious = [f"{f['rule_id']}: {f['quote']}" for f in remaining if f["severity"] in ("critical", "major")]
-        problems = check["problems"] + [f"still violates {s}" for s in serious]
-        self.rewrite, self.rewrite_check = text, {"ok": not problems, "problems": problems}
-        return self.rewrite_check
+        blocking = check["problems"] + [f"still violates {f['rule_id']}: {f['quote']}" for f in remaining
+                                        if f["severity"] in ("critical", "major")]
+        polish = [f"still violates {f['rule_id']} (minor): {f['quote']}" for f in remaining if f["severity"] == "minor"]
+        polish += [f"still contains “{f['quote']}”, which you flagged under {f['rule_id']}" for f in self.ai_findings
+                   if len(f["quote"]) >= 4 and f["quote"] in text]
+        if not blocking or self.rewrite is None or not self.rewrite_check["ok"]:
+            self.rewrite, self.rewrite_check = text, {"ok": not blocking, "problems": blocking}  # keep the best version
+        self.clean = not blocking and not polish
+        todo = blocking + polish
+        return {"ok": not todo, "problems": todo,
+                "note": "Fix these and submit again." if todo else "Verified. You are done."}
 
     def call(self, name, args):
         fn = {"search_rules": self.search_rules, "lookup_fact": self.lookup_fact,
@@ -334,7 +350,7 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                 break
             response = client.messages.create(
                 model=MODEL, max_tokens=MAX_TOKENS, system=system, tools=TOOLS, messages=messages,
-                output_config={"effort": "low"},
+                output_config={"effort": EFFORT},
                 cache_control={"type": "ephemeral"},  # automatic caching of the growing tool loop
             )
             spent += budget.add(MODEL, response.usage)
@@ -358,8 +374,8 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": json.dumps(out, ensure_ascii=False, default=str), "is_error": is_error})
             messages.append({"role": "user", "content": results})
-            if run.rewrite_check and run.rewrite_check["ok"]:
-                break  # verified rewrite received: no need to pay for a closing message
+            if run.clean or run.attempts >= MAX_REWRITES:
+                break  # clean rewrite (or attempts used up): no need to pay for a closing message
     except anthropic.APIStatusError as exc:
         log.warning("Review Agent API error %s: %s", exc.status_code, exc.message)
         return _offline_result(text, intent, kit, rule_findings, f"AI review unavailable ({exc.status_code}); rule checks only.")

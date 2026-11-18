@@ -275,8 +275,8 @@ def test_agent_policy_guard_keeps_only_cited_findings(monkeypatch):
     assert result["rewrite"].startswith("Our experienced mentors") and result["rewrite_check"]["ok"]
     assert [t["tool"] for t in result["tool_log"]] == ["add_finding", "search_rules", "add_finding", "add_finding", "submit_rewrite"]
     first = calls[0]
-    assert first["model"] == "claude-haiku-5-5" and first["output_config"] == {"effort": "low"}
-    assert first["max_tokens"] == 4000 and first["cache_control"] == {"type": "ephemeral"}
+    assert first["model"] == "claude-haiku-5-5" and first["output_config"] == {"effort": "medium"}
+    assert first["max_tokens"] == 6000 and first["cache_control"] == {"type": "ephemeral"}
     assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "fallbacks" not in first and "betas" not in first  # Haiku 5.5 has no server-side refusal fallback
     # tool results go back in one user message, matched by id
@@ -381,3 +381,19 @@ def test_agent_falls_back_to_rules_only_on_api_error(monkeypatch):
     result = agent.review_with_ai("LAST CHANCE!!! Sign up at CodeCraft Academy.", {"cta": "sign up"}, KIT,
                                   *engine.run_rule_checks("LAST CHANCE!!! Sign up at CodeCraft Academy.", KIT, {"cta": "sign up"}))
     assert result["mode"] == "rules-only" and "503" in result["note"] and "LAST CHANCE" not in result["rewrite"]
+
+
+def test_agent_polish_feedback_does_not_block_a_safe_rewrite(monkeypatch):
+    script = [
+        NS(stop_reason="tool_use", content=[_tool("t1", "search_rules", query="tone hype")]),
+        NS(stop_reason="tool_use", content=[
+            _tool("t2", "add_finding", rule_id="TONE-01", quote="amazing", severity="major", explanation="Hype.",
+                  fix_kind="replace", suggested_fix="experienced"),
+            _tool("t3", "submit_rewrite", text="Our amazing mentors help you learn. Sign up at CodeCraft Academy today.")]),
+        NS(stop_reason="end_turn", content=[]),
+    ]
+    result, calls = _run_agent(monkeypatch, script)
+    feedback = json.loads(calls[-1]["messages"][-1]["content"][-1]["content"])
+    # the agent is told to polish its own unaddressed finding, but the safe rewrite is still shown
+    assert feedback["ok"] is False and any("amazing" in p for p in feedback["problems"])
+    assert result["rewrite_check"]["ok"] and result["rewrite"].endswith("today.")

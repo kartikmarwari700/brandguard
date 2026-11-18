@@ -33,7 +33,7 @@ it breaks** and a **suggested correction that keeps the creator's message**, and
 | **Claim provenance (improvement I1, delivered)** | When a manager adds, edits or removes a fact, every unapproved draft is **re-checked automatically** (new version by "system"); approved content that relied on a changed, expired or removed fact gets a **provenance alert** (never silently rewritten); the Facts tab shows **where each fact is used** |
 | Workflow | Creator / Reviewer / Manager roles; accept fix, accept suggested version, edit, dismiss with reason (critical: Manager only), submit, comment, request changes, approve (critical open: Manager sign-off only); approved content is locked |
 | Traceability | Every change is a new version with a word-level diff; every action is in the audit log; dismissals per rule are counted on the Insights page |
-| AI cost control | Claude Haiku 5.5 at low effort, prompt caching, identical reviews reused for free, a spend meter from real token usage with a hard demo budget, an hourly cap and a length cap; the cost of each AI review is shown in the review screen |
+| AI cost control | Claude Haiku 5.5 (medium effort), prompt caching, identical reviews reused for free, a spend meter from real token usage with a hard demo budget, an hourly cap and a length cap; the cost of each AI review is shown in the review screen |
 
 ## How it works
 
@@ -46,7 +46,7 @@ Content + intent ──► Rule checks in code ──► Review Agent (Claude + 
 ```
 
 - `app/engine.py`: deterministic tools (all checks, claim extraction and fact lookup, fixes, intent check).
-- `app/agent.py`: the Review Agent (manual tool-use loop on the Anthropic Messages API, `claude-haiku-5-5`, low effort, prompt caching), the policy guard and the AI spend meter.
+- `app/agent.py`: the Review Agent (manual tool-use loop on the Anthropic Messages API, `claude-haiku-5-5`, medium effort, prompt caching), the policy guard and the AI spend meter.
 - `app/store.py`: SQLite persistence, versions, decisions, role checks, approvals, audit log.
 - `app/main.py`: FastAPI JSON API (`/docs` has interactive API docs) and static hosting of the UI.
 - `app/static/`: the single-page UI (plain HTML, CSS and JavaScript, no build step).
@@ -55,7 +55,7 @@ Content + intent ──► Rule checks in code ──► Review Agent (Claude + 
 ### Why the AI costs almost nothing
 
 Exact checks (glossary, phrases, every number against approved facts) run in code for free. Claude is used only for judgment,
-on **Claude Haiku 5.5** at low effort, with a short tool loop (at most 6 turns and 8 tool calls, 4,000 output tokens per turn) and
+on **Claude Haiku 5.5** (medium effort), with a short tool loop (at most 6 turns, 8 tool calls and 3 rewrite attempts) and
 prompt caching. A review of an identical text against the same Brand Kit is reused instead of paid for twice. A spend meter
 adds up the real token usage of every response; when the demo budget (`BRANDGUARD_AI_BUDGET_USD`) or the hourly cap is reached,
 BrandGuard switches to rules-only mode and says so, and the workflow keeps working. A typical review costs well under one cent.
@@ -73,7 +73,7 @@ pytest; GitHub Actions CI; deployed on Render.
 | Login with three roles | Role switch at the top right, every action role-checked and audited | Judges must use the product without signing in |
 | Agent tools `check_glossary`, `extract_claims`, `propose_fix`, `verify_intent` called by the LLM | These run in code before the agent; the agent calls `search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite` | Exact checks are cheaper and fully reliable in code; the AI is used only for judgment |
 | Claim provenance (I1) in Round 2 | Delivered as planned: claim labels, automatic re-check on Brand Kit changes, provenance alerts, fact usage | No change |
-| Seeded evaluation set in CI | 25 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
+| Seeded evaluation set in CI | 26 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
 
 ## Three improvements for Round 3
 
@@ -88,7 +88,7 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
 uvicorn app.main:app --reload      # http://127.0.0.1:8000
-python -m pytest -q                # 25 tests, no API key needed
+python -m pytest -q                # 26 tests, no API key needed
 ```
 
 AI review is optional: set `BRANDGUARD_ANTHROPIC_API_KEY` to enable the Claude Review Agent. The key is read only from this
