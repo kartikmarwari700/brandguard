@@ -228,10 +228,12 @@ function diffWords(a, b) {
   // Group each run of changes as "removed words" then "added words", so a rewrite reads as two phrases, not confetti.
   const out = []; let dels = [], adds = [];
   const flush = () => {
-    const d = dels.join("").trim(), a = adds.join("").trim();
+    const dr = dels.join(""), ar = adds.join(""), d = dr.trim(), a = ar.trim(), raw = ar || dr;
+    if ((d || a) && /^\s/.test(raw)) out.push(" ");
     if (d) out.push(el("del", {}, d));
     if (d && a) out.push(" ");
     if (a) out.push(el("ins", {}, a));
+    if ((d || a) && /\s$/.test(raw)) out.push(" ");
     dels = []; adds = [];
   };
   ops.forEach(([t, s], k) => {
