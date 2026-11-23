@@ -80,11 +80,12 @@ $("#reset").addEventListener("click", async (e) => {
   try { await post("/api/reset"); KIT = null; toast("Your demo workspace was reset to the samples."); location.hash = "#/"; route(); } catch (err) { toast(err.message, true); }
 });
 
+let statusAt = 0;
 async function loadStatus() {
-  STATUS = await api("/api/status");
+  STATUS = await api("/api/status"); statusAt = Date.now();
   const b = $("#ai-badge");
   const bud = STATUS.ai_budget, paused = bud && bud.paused;
-  b.textContent = !STATUS.ai ? "AI review: rules-only mode" : paused ? "AI review: paused (demo limit)" : `AI review: on (${STATUS.model})`;
+  b.textContent = !STATUS.ai ? "AI review: rules-only mode" : bud.outage ? "AI unavailable: rules-only mode" : paused ? "AI review: paused (demo limit)" : `AI review: on (${STATUS.model})`;
   b.className = "badge" + (STATUS.ai && !paused ? " on" : "");
   b.title = !STATUS.ai ? "No AI key configured: exact rule and fact checks still run."
     : (paused ? paused + " " : "Claude reviews tone, messaging and claims using Brand Kit tools. ")
@@ -426,9 +427,46 @@ function imageBlock(sub, cur, ai, running) {
       onclick: () => { if (finding) { const c = document.getElementById(`f-${finding.id}`); if (c) c.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
       bad ? el("span", { class: "boxlabel" }, `${e.measure.ratio}:1`) : null);
   });
+  (m.checks || []).forEach((c) => {
+    const finding = cur.findings.find((f) => f.rule_id === "ACC-05" && f.quote === `Marked text #${c.n}` && f.status === "open");
+    boxes.push(el("div", { class: "box marked" + (c.measure.pass ? " ok" : ""), "data-fid": finding ? finding.id : "",
+      style: `left:${c.box.x * 100}%;top:${c.box.y * 100}%;width:${c.box.w * 100}%;height:${c.box.h * 100}%`,
+      title: `Marked text #${c.n}: contrast ${c.measure.ratio}:1 (needs ${c.measure.need}:1)` },
+      el("span", { class: "boxlabel" + (c.measure.pass ? " ok" : "") }, `#${c.n} ${c.measure.ratio}:1`)));
+  });
+  const wrap = el("div", { class: "imgwrap" }, el("img", { src: `data:${m.mime};base64,${m.data}`, alt: m.alt || "", draggable: "false" }), boxes);
+  const size = el("select", { style: "width:auto" }, el("option", { value: "normal" }, "normal text (4.5:1)"), el("option", { value: "large" }, "large headline (3:1)"));
+  const hint = el("span", { class: "small muted" });
+  let drawing = false;
+  const checkBtn = el("button", { onclick: () => {
+    drawing = !drawing; wrap.classList.toggle("drawing", drawing);
+    checkBtn.textContent = drawing ? "Cancel" : "Check text contrast";
+    hint.textContent = drawing ? "Drag a box tightly around one line of text on the image." : "";
+  } }, "Check text contrast");
+  let start = null, draft = null;
+  const rel = (e) => { const r = wrap.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; };
+  wrap.addEventListener("pointerdown", (e) => {
+    if (!drawing) return; e.preventDefault(); wrap.setPointerCapture(e.pointerId); start = rel(e);
+    draft = el("div", { class: "box draft" }); wrap.append(draft);
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!start || !draft) return; const p = rel(e);
+    Object.assign(draft.style, { left: `${Math.min(p.x, start.x) * 100}%`, top: `${Math.min(p.y, start.y) * 100}%`, width: `${Math.abs(p.x - start.x) * 100}%`, height: `${Math.abs(p.y - start.y) * 100}%` });
+  });
+  wrap.addEventListener("pointerup", async (e) => {
+    if (!start) return; const p = rel(e), s0 = start; start = null;
+    const box = { x: Math.min(p.x, s0.x), y: Math.min(p.y, s0.y), w: Math.abs(p.x - s0.x), h: Math.abs(p.y - s0.y), size: size.value };
+    try {
+      const r = await post(`/api/submissions/${sub.id}/contrast`, box);
+      toast(r.measure.pass ? `✔ Readable: ${r.measure.ratio}:1 (needs ${r.measure.need}:1).` : `✖ Too low: ${r.measure.ratio}:1 (needs ${r.measure.need}:1). Added as an issue.`, !r.measure.pass);
+      route();
+    } catch (err) { toast(err.message, true); if (draft) draft.remove(); }
+  });
+  const locked = sub.status === "approved";
   return el("div", {},
-    el("div", { class: "imgwrap" }, el("img", { src: `data:${m.mime};base64,${m.data}`, alt: m.alt || "" }), boxes),
-    el("div", { class: "small muted", style: "margin:4px 0 8px" }, `${m.width} × ${m.height} px · red boxes = text below WCAG contrast, green = readable`),
+    wrap,
+    el("div", { class: "small muted", style: "margin:4px 0 4px" }, `${m.width} × ${m.height} px · red boxes = text below WCAG contrast, green = readable`),
+    locked ? null : el("div", { class: "row", style: "margin-bottom:8px" }, checkBtn, size, hint),
     el("h3", {}, "Main colours vs brand palette"),
     el("div", { class: "row" }, (m.colours || []).map((c) => el("span", { class: "colour " + (c.ok ? "ok" : "bad"), title: c.nearest ? `Nearest brand colour: ${c.nearest.name} ${c.nearest.hex} (ΔE ${c.nearest.delta_e})` : "" },
       el("span", { class: "swatch", style: `background:${c.hex}` }), `${c.hex} · ${Math.round(c.share * 100)}% · ${c.ok ? "✔ brand or neutral" : "✖ off-palette"}`))),
@@ -686,7 +724,7 @@ async function route() {
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("on", a.getAttribute("href") === h || (h.startsWith("#/s/") && a.dataset.nav === "inbox")));
   const app = $("#app");
   try {
-    if (!STATUS) await loadStatus();
+    if (!STATUS || Date.now() - statusAt > 20000) await loadStatus();
     let view;
     if (h.startsWith("#/s/")) view = await reviewView(h.slice(4));
     else if (h === "#/new") view = await newView();

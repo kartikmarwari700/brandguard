@@ -497,6 +497,33 @@ def edit_content(submission_id, content, role, media=None, alt=None):
     return create_version(submission_id, content.strip(), role, "Edited by hand", media=media)
 
 
+def check_contrast(submission_id, box, size, role):
+    """A person marks a line of text on the image; code measures its WCAG contrast (works without AI)."""
+    from . import images
+    _require(role, ("creator", "reviewer", "manager"), "check contrast")
+    _editable(submission_id)
+    cur = _current(submission_id)
+    media = _media(cur)
+    if not media:
+        raise WorkflowError("This content has no image.")
+    box = {k: min(1.0, max(0.0, float(box.get(k, 0)))) for k in ("x", "y", "w", "h")}
+    if box["w"] < 0.02 or box["h"] < 0.01:
+        raise WorkflowError("Draw a larger box around one line of text.")
+    m = images.measure(images._pil(media), box, size)
+    if not m:
+        raise WorkflowError("No clear text and background colours in that area. Draw the box tightly around one line of text.")
+    n = len(media.get("checks") or []) + 1
+    media.setdefault("checks", []).append({"box": box, "size": size, "measure": m, "n": n, "by": role})
+    findings = json.loads(cur["findings"])
+    if not m["pass"]:
+        f = images.contrast_finding(f"Marked text #{n}", m, box, get_kit())
+        f["checked_by"] = role
+        findings.append(f)
+    q("UPDATE versions SET findings = ?, media = ? WHERE id = ?", (json.dumps(findings), json.dumps(media), cur["id"]))
+    audit(role, "contrast.check", submission_id, f"Marked text #{n}: {m['ratio']}:1 (needs {m['need']}:1) — {'pass' if m['pass'] else 'fail'}")
+    return m
+
+
 def dismiss(submission_id, finding_id, reason, role):
     _require(role, ("creator", "reviewer", "manager"), "dismiss findings")
     _editable(submission_id)

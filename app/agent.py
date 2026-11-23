@@ -139,6 +139,11 @@ def api_error(exc):
         reason = "the AI service is busy"
     else:
         reason = msg[:120] or "request failed"
+    # account problems will not fix themselves in seconds: stop calling the API for a while (fast rules-only reviews)
+    if code in (401, 403) or "credit" in reason or "spend limit" in reason:
+        budget.pause(reason, 600)
+    elif code == 429:
+        budget.pause(reason, 60)
     return f"{code or 'network'}: {reason}"
 
 
@@ -168,6 +173,11 @@ class Budget:
         with self.lock:
             self.spent, self.calls, self.reviews, self.reused = 0.0, 0, 0, 0
             self._recent = deque()
+            self._outage = None  # (reason, until): the API account cannot be used right now
+
+    def pause(self, reason, seconds):
+        with self.lock:
+            self._outage = (reason, time.time() + seconds)
 
     @staticmethod
     def limit():
@@ -178,6 +188,9 @@ class Budget:
         return int(os.environ.get("BRANDGUARD_AI_MAX_PER_HOUR", "30"))
 
     def _blocked(self):
+        if self._outage and time.time() < self._outage[1]:
+            return (f"AI is unavailable right now ({self._outage[0]}). Rule checks and fact checks still ran in code, "
+                    "and BrandGuard works fully in rules-only mode.")
         if self.spent >= self.limit():
             return (f"The AI budget for this demo is used up (${self.spent:.2f} of ${self.limit():.2f}). "
                     "Rule checks and fact checks still ran in code.")
@@ -217,7 +230,7 @@ class Budget:
         with self.lock:
             return {"spent_usd": round(self.spent, 4), "limit_usd": self.limit(), "reviews": self.reviews,
                     "reused": self.reused, "api_calls": self.calls, "per_hour": self.per_hour(),
-                    "paused": self._blocked()}
+                    "paused": self._blocked(), "outage": bool(self._outage and time.time() < self._outage[1])}
 
 
 budget = Budget()

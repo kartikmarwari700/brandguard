@@ -244,6 +244,15 @@ def _best_text_colour(bg_hex, kit):
     return f"{p['name']} {p['hex']} ({ratio:.1f}:1)"
 
 
+def contrast_finding(quote, m, box, kit):
+    best = _best_text_colour(m["bg"], kit)
+    return _f("ACC-05", "accessibility", "major", quote,
+              f"Text contrast is {m['ratio']}:1 (text {m['fg']} on {m['bg']}); WCAG needs at least {m['need']}:1 "
+              f"for {'large' if m['need'] == 3.0 else 'normal'} text.", "image",
+              fix_note=f"Use a darker or lighter text colour, for example {best}." if best else None,
+              extra={"box": box, "swatch": m["fg"], "suggest": m["bg"]})
+
+
 def _image_text_findings(text, kit):
     findings, verified = engine.run_rule_checks(text, kit, None) if text.strip() else ([], [])
     # capitals are a design choice in images: skip ALL-CAPS and case-only spelling differences
@@ -311,12 +320,7 @@ def review_image(media, intent, kit, caption, caption_findings):
         m = measure(img, box, t.get("size"))
         elements.append({"text": text, "box": box, "size": t.get("size"), "measure": m})
         if m and not m["pass"]:
-            best = _best_text_colour(m["bg"], kit)
-            findings.append(_f("ACC-05", "accessibility", "major", text[:80],
-                               f"Text contrast is {m['ratio']}:1 (text {m['fg']} on {m['bg']}); WCAG needs at least {m['need']}:1 "
-                               f"for {'large' if m['need'] == 3.0 else 'normal'} text.", "image",
-                               fix_note=f"Use a darker or lighter text colour, for example {best}." if best else None,
-                               extra={"box": box, "swatch": m["fg"], "suggest": m["bg"]}))
+            findings.append(contrast_finding(text[:80], m, box, kit))
     image_text = "\n".join(e["text"] for e in elements)
     text_findings, image_verified = _image_text_findings(image_text, kit)
     findings += text_findings + _cta_finding(intent, caption, image_text, kit)

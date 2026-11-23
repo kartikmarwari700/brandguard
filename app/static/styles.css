@@ -113,3 +113,8 @@ body.busy { cursor: progress; }
 .importrow label { margin-top: 6px; }
 .importrow textarea { min-height: 56px; }
 @media (max-width: 700px) { .actionbar { position: static; } .top { position: static; } }
+.imgwrap.drawing { cursor: crosshair; touch-action: none; }
+.imgwrap.drawing img { outline: 3px dashed var(--accent); outline-offset: 2px; }
+.box.draft { border: 2px dashed var(--accent); background: rgba(47,91,234,.08); pointer-events: none; }
+.box.marked.ok { border: 2px solid var(--good); }
+.boxlabel.ok { background: var(--good); }

@@ -128,10 +128,33 @@ def _ai_extract(pages, kit):
     return list(call.input.get("items") or [])[:80], None, cost
 
 
+FILLER = {"after", "for", "in", "of", "to", "and", "or", "per", "a", "an", "the", "with", "on", "at", "by", "from"}
+
+
+def _code_fact(label, s):
+    """A sentence that states a number as true ('has 45 mentors', 'runs for 6 weeks') becomes a fact candidate."""
+    if re.search(r"(?i)\b(must|should|at least|at most|never|always|do not|don't|avoid)\b", s):
+        return None  # numbers inside rules are thresholds, not facts
+    for m in re.finditer(r"(?<![#\w.:-])(\d[\d,]*(?:\.\d+)?)(\s*%|\s+[A-Za-z]+(?:\s+[A-Za-z]+)?)", s):
+        raw = m.group(1).replace(",", "")
+        if re.fullmatch(r"(19|20)\d\d", raw) or s[m.end():m.end() + 1] in (":", "-"):
+            continue
+        words = m.group(2).split()
+        unit = "%" if m.group(2).strip() == "%" else (words[1] if len(words) > 1 and words[1].lower() not in FILLER else words[0])
+        statement = re.sub(r"^(?i:approved figures?|facts?|key numbers?)\s*:\s*", "", s).strip()
+        statement = re.sub(r"\s*\((?:source|valid)[^)]*\)", "", statement).strip()
+        until = re.search(r"valid until (\d{4}-\d{2}-\d{2})", s)
+        return {"kind": "fact", "page": label, "quote": s, "statement": statement, "value": float(raw), "unit": unit.lower(),
+                "valid_until": until.group(1) if until else ""}
+    return None
+
+
 def _code_extract(pages):
-    """Without AI: 'Use X, not Y' terms and do/don't sentences as rules. Facts need the AI."""
+    """Without AI: 'Use X, not Y' terms, do/don't sentences as rules and stated numbers as facts."""
     items = []
     for label, text in pages:
+        # PDF text breaks lines inside sentences: re-join hyphen breaks and lines that continue in lower case or digits
+        text = re.sub(r"\n(?=[a-z0-9(])", " ", re.sub(r"-\n(?=\w)", "-", text))
         for sentence in re.split(r"(?<=[.!?])\s+|\n", text):
             s = sentence.strip()
             m = re.match(r"(?i)(?:always\s+)?(?:use|write)\s+[“\"']?([^“”\"',;]+?)[”\"']?(?:\s+as one word)?\s*,?\s*"
@@ -147,6 +170,10 @@ def _code_extract(pages):
                                               ("messaging", ("call to action", "offer", "end date"))) if any(w in low for w in words)), "tone")
                 items.append({"kind": "rule", "page": label, "quote": s, "title": s[:70].rstrip(" ,.;") + ("…" if len(s) > 70 else ""),
                               "text": s, "category": cat, "severity": "major", "patterns": []})
+            elif re.search(r"\d", s):
+                fact = _code_fact(label, s)
+                if fact:
+                    items.append(fact)
     return items
 
 
@@ -213,7 +240,7 @@ def extract(filename, data, role):
     if agent.ai_available():
         raw, note, cost = _ai_extract(pages, kit)
     else:
-        note = "AI review is off, so a simple extraction in code was used (rules and terms only; facts need the AI)."
+        note = "AI review is off, so a simple extraction in code was used."
     if raw is None:
         raw, source = _code_extract(pages), "code"
     items, rejected, seen = [], [], set()

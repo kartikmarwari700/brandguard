@@ -659,3 +659,64 @@ def test_evaluation_set_precision_and_recall():
     assert res["cases"] >= 50
     assert t["tp"] / (t["tp"] + t["fp"]) >= 0.95 and t["tp"] / (t["tp"] + t["fn"]) >= 0.95, (res["extras"], res["misses"])
     assert res["verified"][0] == res["verified"][1]
+
+
+def test_account_without_credit_pauses_ai_and_says_why(monkeypatch):
+    import anthropic
+    import httpx
+
+    from app import agent
+    agent.budget.reset()
+    agent.clear_cache()
+    calls = []
+
+    def no_credit(**kwargs):
+        calls.append(kwargs)
+        raise anthropic.BadRequestError("no credit", response=httpx.Response(400, request=httpx.Request("POST", "https://api.anthropic.com")),
+                                        body={"type": "error", "error": {"type": "invalid_request_error",
+                                                                         "message": "Your credit balance is too low to access the Anthropic API."}})
+    class Fake:
+        def __init__(self, **kw):
+            self.messages = NS(create=no_credit)
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(anthropic, "Anthropic", Fake)
+    text = "Join 38,000 students at CodeCraft Academy. Sign up today."
+    first = agent.review_with_ai(text, {"cta": "sign up"}, KIT, *engine.run_rule_checks(text, KIT, {"cta": "sign up"}))
+    assert first["mode"] == "rules-only" and "no credit left" in first["note"] and len(calls) == 1
+    other = "Learn Python at CodeCraft Academy. Sign up today."
+    second = agent.review_with_ai(other, {"cta": "sign up"}, KIT, *engine.run_rule_checks(other, KIT, {"cta": "sign up"}))
+    assert second["mode"] == "rules-only" and "unavailable" in second["note"] and len(calls) == 1   # no new API call
+    snap = agent.budget.snapshot()
+    assert snap["outage"] and "no credit" in snap["paused"]
+    agent.budget.reset()
+
+
+def test_import_without_ai_also_finds_stated_facts(client):
+    m = W("visitor-imp-0003", "manager")
+    imp = _upload_guide(client, m).json()
+    facts = {i["data"]["statement"]: i for i in imp["items"] if i["kind"] == "fact"}
+    assert facts["CodeCraft Academy has 45 mentors."]["data"]["valid_until"] == "2027-06-30"
+    assert facts["CodeCraft Academy has 45 mentors."]["data"]["unit"] == "mentors" and facts["CodeCraft Academy has 45 mentors."]["data"]["value"] == 45
+    assert facts["The Summer Bootcamp runs for 6 weeks."]["expiry_guessed"] is True
+    assert facts["CodeCraft Academy has 120 hiring partners."]["duplicate_of"] == "FACT-04"
+    assert not any("4.5" in str(i["data"].get("value")) for i in imp["items"] if i["kind"] == "fact")   # a threshold, not a fact
+
+
+def test_manual_contrast_check_on_the_poster_without_ai(client):
+    h = W("visitor-con-0001")
+    subs = client.get("/api/submissions", headers=h).json()
+    poster = next(s["id"] for s in subs if s["kind"] == "image")
+    text = next(s["id"] for s in subs if s["kind"] == "text")
+    yellow = client.post(f"/api/submissions/{poster}/contrast", headers=h, json={"x": 0.1, "y": 0.64, "w": 0.8, "h": 0.07, "size": "normal"}).json()
+    assert yellow["measure"]["pass"] is False and yellow["measure"]["ratio"] < 2
+    card = next(f for f in yellow["submission"]["current"]["findings"] if f["rule_id"] == "ACC-05")
+    assert card["quote"] == "Marked text #1" and card["target"] == "image" and "Ink" in card["fix_note"]
+    ink = client.post(f"/api/submissions/{poster}/contrast", headers=h, json={"x": 0.15, "y": 0.855, "w": 0.7, "h": 0.06, "size": "normal"}).json()
+    assert ink["measure"]["pass"] is True and sum(f["rule_id"] == "ACC-05" for f in ink["submission"]["current"]["findings"]) == 1
+    assert [c["n"] for c in ink["submission"]["current"]["media"]["checks"]] == [1, 2]
+    tiny = client.post(f"/api/submissions/{poster}/contrast", headers=h, json={"x": 0.1, "y": 0.1, "w": 0.005, "h": 0.005, "size": "normal"})
+    assert tiny.status_code == 400
+    assert client.post(f"/api/submissions/{text}/contrast", headers=h, json={"x": 0.1, "y": 0.1, "w": 0.5, "h": 0.1}).status_code == 400
+    dismiss = client.post(f"/api/submissions/{poster}/dismiss", headers=W("visitor-con-0001", "manager"),
+                          json={"finding_id": card["id"], "reason": "The designer is fixing the colour"})
+    assert dismiss.status_code == 200

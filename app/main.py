@@ -237,6 +237,20 @@ async def replace_image(sid: int, file: UploadFile = File(...), x_role: Optional
     return await run_in_threadpool(store.get_submission, sid)
 
 
+class ContrastBox(BaseModel):
+    x: float = Field(..., ge=0, le=1)
+    y: float = Field(..., ge=0, le=1)
+    w: float = Field(..., ge=0, le=1)
+    h: float = Field(..., ge=0, le=1)
+    size: str = Field("normal", pattern=r"^(normal|large)$")
+
+
+@app.post("/api/submissions/{sid}/contrast")
+def contrast_check(sid: int, body: ContrastBox, x_role: Optional[str] = Header(None)):
+    result = store.check_contrast(sid, body.model_dump(), body.size, role_of(x_role))
+    return {"measure": result, "submission": store.get_submission(sid)}
+
+
 @app.get("/api/submissions/{sid}")
 def submission(sid: int):
     return store.get_submission(sid)
