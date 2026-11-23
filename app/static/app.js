@@ -110,7 +110,7 @@ function counts(c, verified) {
 
 async function inbox() {
   const subs = await api("/api/submissions");
-  const first = subs.find((s) => s.open_counts.critical) || subs[0];
+  const first = subs.find((s) => s.kind === "text" && s.open_counts.critical) || subs[0];
   return el("div", {},
     el("div", { class: "guide" },
       el("div", { style: "flex:1;min-width:260px" },
@@ -118,7 +118,10 @@ async function inbox() {
         el("ol", {},
           el("li", {}, "Open a post below. Every issue shows the brand rule or approved fact it breaks, and a suggested fix."),
           el("li", {}, "As Creator: accept fixes (or the full suggested version), then click “Submit for review”."),
-          el("li", {}, "Switch to Reviewer or Manager (top right) and approve. Critical issues need a Manager."))),
+          el("li", {}, "Switch to Reviewer or Manager (top right) and approve. Critical issues need a Manager.")),
+        el("div", { class: "small", style: "margin-top:6px" }, "Also try: the ", el("b", {}, "poster"), " (image colours, contrast and alt text) · ",
+          el("a", { href: "#/insights" }, "Guideline Clarity"), " (as Manager, draft a clearer rule) · ",
+          el("a", { href: "#/kit", onclick: () => { kitTab = "import"; } }, "Brand Kit → Import"), " (as Manager, read a guideline PDF).")),
       el("div", { class: "row" },
         first ? el("button", { class: "primary", onclick: () => { location.hash = `#/s/${first.id}`; } }, "Start with a sample →") : null,
         el("button", { onclick: () => { location.hash = "#/new"; } }, "Check your own text or image"))),
@@ -654,15 +657,26 @@ async function activityView() {
 }
 
 function howView() {
-  return el("div", { class: "panel how", style: "max-width:860px;margin:auto" },
+  const step = (title, ...text) => el("li", {}, el("b", {}, title + " "), ...text);
+  return el("div", { class: "panel how", style: "max-width:900px;margin:auto" },
     el("h1", {}, "How BrandGuard works"),
+    el("p", { class: "muted" }, "Content is checked against the organisation's Brand Kit before it is published. Every issue names the rule or fact it breaks, comes with a fix, and a person decides."),
     el("ol", {},
-      el("li", {}, el("b", {}, "Brand Kit. "), "Rules with IDs, a glossary, approved facts (with source, owner and expiry date) and brand colours."),
-      el("li", {}, el("b", {}, "Rule checks in code. "), "Glossary terms, banned phrases (hype, pressure, guarantees, superlatives), readability, the call to action, and every number compared with approved facts: supported, contradicted, outdated (expired fact) or no source."),
-      el("li", {}, el("b", {}, "AI Review Agent. "), "When an AI key is configured, Claude plans further checks (tone, messaging, claims in context), calls Brand Kit tools for evidence, adds findings and proposes a full suggested version. A policy guard keeps only findings that cite a rule returned by a tool and quote the text exactly; the suggested version must keep the call to action and brand name and may not invent numbers."),
-      el("li", {}, el("b", {}, "People decide. "), "Creators accept, edit or dismiss each fix (dismissals need a reason). Reviewers approve; open critical issues need a Manager's sign-off. The agent has no approve or publish action."),
-      el("li", {}, el("b", {}, "Audit and learning. "), "Every action is logged. Dismissal reasons per rule feed the insights page, which shows rules that may be unclear.")),
-    el("p", { class: "muted small" }, "Built by team Cite or Flag for CodeZen India 2026. The demo brand and its facts are fictional."));
+      step("Brand Kit.", "Rules with IDs and examples, a glossary, approved facts (with source, owner and expiry date) and brand colours. Managers edit it, or ",
+        el("a", { href: "#/kit", onclick: () => { kitTab = "import"; } }, "import an existing guideline PDF or Word file"), ": the agent proposes items with the page and sentence they came from, code checks that sentence is really in the document, and a Manager accepts each item."),
+      step("Exact checks in code.", "Glossary terms, banned phrases (hype, pressure, guarantees, superlatives), readability, the call to action, and every number compared with approved facts: supported, contradicted, outdated (expired fact) or no source."),
+      step("Images.", "Main colours are compared with the brand palette and alt text is checked in code. The AI reads the text in the image and where it is; code measures each text's contrast against WCAG (4.5:1, or 3:1 for large text), and the text goes through the same rule and fact checks."),
+      step("AI Review Agent.", "Claude (Haiku 5.5) checks tone, messaging and claims in context with Brand Kit tools and writes a suggested version. A policy guard keeps only findings that cite a rule a tool returned and quote the text exactly; AI findings can never block approval on their own, and the suggested version must keep the call to action and brand name and add no unapproved number."),
+      step("People decide.", "Creators accept, edit or dismiss each fix (dismissals need a reason). Reviewers approve; open critical issues need a Manager's sign-off. The agent has no approve or publish action."),
+      step("Guidelines improve.", "Every accept and dismiss feeds the ", el("a", { href: "#/insights" }, "Guideline Clarity Score"),
+        ". Rules people keep overriding are flagged; the agent drafts a clearer rule, code replays past decisions to show its effect, and a Manager applies it as a new Brand Kit version."),
+      step("Traceable and safe.", "Every change is a version with a compare view, every action is in the audit log, approved content that relied on a changed fact gets a provenance alert, and AI cost is capped with a spend meter.")),
+    el("h3", {}, "Good to know"),
+    el("ul", { class: "small" },
+      el("li", {}, "This browser has its own private demo workspace. “Reset demo data” in the footer restores the samples."),
+      el("li", {}, "If the AI budget or the hourly limit is reached, BrandGuard keeps working in rules-only mode and says so on screen."),
+      el("li", {}, "The demo brand “CodeCraft Academy”, its facts, sample posts, poster, guideline PDF and example review history are fictional.")),
+    el("p", { class: "muted small" }, "Built by team Cite or Flag for CodeZen India 2026."));
 }
 
 // ------------------------------------------------------------------ router
