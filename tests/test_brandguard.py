@@ -648,3 +648,14 @@ def test_import_with_simulated_model_keeps_only_quotes_found_in_the_document(cli
                                                                                   "intent": {"cta": "sign up"}}).json()
     found = {(f["rule_id"], f["quote"]) for f in check["current"]["findings"]}
     assert ("CLAIM-01", "60") in found and any(q == "synergy" for _, q in found)
+
+
+# ---------------------------------------------------------------- labelled evaluation set (runs in CI)
+
+def test_evaluation_set_precision_and_recall():
+    from eval.run_eval import evaluate
+    res = evaluate()
+    t = res["total"]
+    assert res["cases"] >= 50
+    assert t["tp"] / (t["tp"] + t["fp"]) >= 0.95 and t["tp"] / (t["tp"] + t["fn"]) >= 0.95, (res["extras"], res["misses"])
+    assert res["verified"][0] == res["verified"][1]

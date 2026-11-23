@@ -1,0 +1,477 @@
+{
+ "about": "Hand-labelled evaluation set for the exact checks in code. Each case lists what a brand reviewer applying the demo Brand Kit should flag (rule ID and the quoted words) and which claims should be verified against approved facts. Labels were written from the Brand Kit rules, not from the engine's output. The brand and all facts are fictional.",
+ "today": "2026-11-23",
+ "cases": [
+  {
+   "id": "c01",
+   "text": "Join 38,000 students at CodeCraft Academy. Sign up today.",
+   "cta": "sign up",
+   "expect": [],
+   "verified": [
+    "FACT-01"
+   ]
+  },
+  {
+   "id": "c02",
+   "text": "Over 40,000 students learn with CodeCraft Academy. Sign up today.",
+   "cta": "sign up",
+   "expect": [
+    [
+     "CLAIM-01",
+     "40,000"
+    ]
+   ]
+  },
+  {
+   "id": "c03",
+   "text": "We work with 95 hiring partners across India.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "95"
+    ]
+   ]
+  },
+  {
+   "id": "c04",
+   "text": "CodeCraft Academy is the best coding school in India.",
+   "expect": [
+    [
+     "CLAIM-02",
+     "best"
+    ]
+   ]
+  },
+  {
+   "id": "c05",
+   "text": "Our bestselling course is back this winter.",
+   "expect": []
+  },
+  {
+   "id": "c06",
+   "text": "We guarantee you a job after the course.",
+   "expect": [
+    [
+     "CLAIM-03",
+     "guarantee"
+    ]
+   ]
+  },
+  {
+   "id": "c07",
+   "text": "Placement support is guaranteed for 12 months.",
+   "expect": [
+    [
+     "CLAIM-03",
+     "guaranteed"
+    ],
+    [
+     "CLAIM-01",
+     "12"
+    ]
+   ]
+  },
+  {
+   "id": "c08",
+   "text": "Hurry, seats are filling fast!",
+   "expect": [
+    [
+     "TONE-03",
+     "Hurry"
+    ]
+   ]
+  },
+  {
+   "id": "c09",
+   "text": "LAST CHANCE to join the workshop!!!",
+   "expect": [
+    [
+     "TONE-03",
+     "LAST CHANCE"
+    ],
+    [
+     "TONE-03",
+     "!!!"
+    ]
+   ],
+   "note": "Label corrected after the first run: the rule text itself forbids rows of exclamation marks."
+  },
+  {
+   "id": "c10",
+   "text": "This bootcamp is insane.",
+   "expect": [
+    [
+     "TONE-01",
+     "insane"
+    ]
+   ]
+  },
+  {
+   "id": "c11",
+   "text": "We're gonna help you learn to code.",
+   "expect": [
+    [
+     "TONE-02",
+     "gonna"
+    ]
+   ]
+  },
+  {
+   "id": "c12",
+   "text": "Hey folks, the workshop is back.",
+   "expect": [
+    [
+     "TONE-04",
+     "Hey"
+    ],
+    [
+     "TONE-04",
+     "folks"
+    ]
+   ]
+  },
+  {
+   "id": "c13",
+   "text": "Learn with our tutors at Codecraft Academy.",
+   "expect": [
+    [
+     "TERM-05",
+     "tutors"
+    ],
+    [
+     "TERM-01",
+     "Codecraft Academy"
+    ]
+   ]
+  },
+  {
+   "id": "c14",
+   "text": "Our customers love the Winter Boot Camp.",
+   "expect": [
+    [
+     "TERM-06",
+     "customers"
+    ],
+    [
+     "TERM-02",
+     "Winter Boot Camp"
+    ]
+   ]
+  },
+  {
+   "id": "c15",
+   "text": "Send us an e-mail to signup.",
+   "expect": [
+    [
+     "TERM-04",
+     "e-mail"
+    ],
+    [
+     "TERM-03",
+     "signup"
+    ]
+   ]
+  },
+  {
+   "id": "c16",
+   "text": "Click here to register for the workshop.",
+   "expect": [
+    [
+     "ACC-02",
+     "Click here"
+    ]
+   ]
+  },
+  {
+   "id": "c17",
+   "text": "Our mentors review every project line by line and explain what to improve and why so that you understand your code and can explain it yourself in any interview you attend later.",
+   "expect": [
+    [
+     "ACC-01",
+     "Our mentors review every project"
+    ]
+   ]
+  },
+  {
+   "id": "c18",
+   "text": "Learners rate us 4.6 out of 5.",
+   "expect": [],
+   "verified": [
+    "FACT-03"
+   ]
+  },
+  {
+   "id": "c19",
+   "text": "Learners rate us 4.9 out of 5.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "4.9"
+    ]
+   ]
+  },
+  {
+   "id": "c20",
+   "text": "The Winter Bootcamp runs for 8 weeks.",
+   "expect": [],
+   "verified": [
+    "FACT-05"
+   ]
+  },
+  {
+   "id": "c21",
+   "text": "The Winter Bootcamp runs for 10 weeks.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "10"
+    ]
+   ]
+  },
+  {
+   "id": "c22",
+   "text": "Get 70% off the Winter Bootcamp until 30 Nov 2026.",
+   "expect": [],
+   "verified": [
+    "FACT-02"
+   ]
+  },
+  {
+   "id": "c23",
+   "text": "Get 50% off the Winter Bootcamp.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "50%"
+    ]
+   ]
+  },
+  {
+   "id": "c24",
+   "text": "Our mentors gave 300 hours of mentor support last month.",
+   "expect": [],
+   "verified": [
+    "FACT-07"
+   ]
+  },
+  {
+   "id": "c25",
+   "text": "Classes start at 10 AM on Saturday.",
+   "expect": []
+  },
+  {
+   "id": "c26",
+   "text": "Call us on 98765 43210 for details.",
+   "expect": []
+  },
+  {
+   "id": "c27",
+   "text": "In 2026 we opened a new learning centre.",
+   "expect": []
+  },
+  {
+   "id": "c28",
+   "text": "Book a seat on our website.",
+   "cta": "book a seat",
+   "expect": []
+  },
+  {
+   "id": "c29",
+   "text": "Join our Winter Bootcamp this December.",
+   "cta": "sign up",
+   "expect": [
+    [
+     "MSG-01",
+     ""
+    ]
+   ]
+  },
+  {
+   "id": "c30",
+   "text": "You are going to love it. Sign up today.",
+   "cta": "sign up",
+   "expect": []
+  },
+  {
+   "id": "c31",
+   "text": "Our AWESOME mentors are here to help.",
+   "expect": [
+    [
+     "TONE-04",
+     "AWESOME"
+    ]
+   ]
+  },
+  {
+   "id": "c32",
+   "text": "Read our FAQ before you apply.",
+   "expect": []
+  },
+  {
+   "id": "c33",
+   "text": "The course is cool and super practical.",
+   "expect": [
+    [
+     "TONE-04",
+     "cool"
+    ],
+    [
+     "TONE-04",
+     "super"
+    ]
+   ]
+  },
+  {
+   "id": "c34",
+   "text": "We are India's leading coding academy.",
+   "expect": [
+    [
+     "CLAIM-02",
+     "leading"
+    ]
+   ]
+  },
+  {
+   "id": "c35",
+   "text": "Top-rated mentors guide every project.",
+   "expect": [
+    [
+     "CLAIM-02",
+     "Top-rated"
+    ]
+   ]
+  },
+  {
+   "id": "c36",
+   "text": "Your success is sure-shot with us.",
+   "expect": [
+    [
+     "CLAIM-03",
+     "sure-shot"
+    ]
+   ]
+  },
+  {
+   "id": "c37",
+   "text": "We have more than 120 hiring partners.",
+   "expect": [],
+   "verified": [
+    "FACT-04"
+   ]
+  },
+  {
+   "id": "c38",
+   "text": "Our 150 partner companies hire our learners.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "150"
+    ]
+   ]
+  },
+  {
+   "id": "c39",
+   "text": "Pls register by Friday.",
+   "expect": [
+    [
+     "TONE-02",
+     "Pls"
+    ]
+   ]
+  },
+  {
+   "id": "c40",
+   "text": "Our learners build 3 projects in the course.",
+   "expect": [
+    [
+     "CLAIM-01",
+     "3"
+    ]
+   ]
+  },
+  {
+   "id": "c41",
+   "text": "It is the number one choice for learners.",
+   "expect": [
+    [
+     "CLAIM-02",
+     "number one"
+    ]
+   ]
+  },
+  {
+   "id": "c42",
+   "text": "Super excited to welcome our new learners!",
+   "expect": [
+    [
+     "TONE-04",
+     "Super"
+    ]
+   ]
+  },
+  {
+   "id": "c43",
+   "text": "Avoid the rush and register now.",
+   "expect": []
+  },
+  {
+   "id": "c44",
+   "text": "Code craft workshops are fun and practical.",
+   "expect": [
+    [
+     "TERM-01",
+     "Code craft"
+    ]
+   ]
+  },
+  {
+   "id": "c45",
+   "text": "This is a mind-blowing opportunity for beginners.",
+   "expect": [
+    [
+     "TONE-01",
+     "mind-blowing"
+    ]
+   ]
+  },
+  {
+   "id": "c46",
+   "text": "Our teachers answer every question within a day.",
+   "expect": [
+    [
+     "TERM-05",
+     "teachers"
+    ]
+   ]
+  },
+  {
+   "id": "c47",
+   "text": "Only today: free mock interviews for learners.",
+   "expect": [
+    [
+     "TONE-03",
+     "Only today"
+    ]
+   ]
+  },
+  {
+   "id": "c48",
+   "text": "We have 38,000 learners and 120 hiring partners.",
+   "expect": [],
+   "verified": [
+    "FACT-01",
+    "FACT-04"
+   ]
+  },
+  {
+   "id": "c49",
+   "text": "WhatsApp us on +91 98765 43210 or join at 6:30 pm.",
+   "expect": []
+  },
+  {
+   "id": "c50",
+   "text": "Doors open at 9am and the first talk starts at 9:30.",
+   "expect": []
+  }
+ ]
+}

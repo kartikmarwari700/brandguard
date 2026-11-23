@@ -136,6 +136,13 @@ def extract_claims(text):
         after = text[m.end():m.end() + 12].lower()
         if re.match(rf"\s*({MONTHS})\b", after) or re.fullmatch(r"(19|20)\d\d", raw):
             continue  # dates and years are not claims
+        if re.match(r"\s*(a\.?m\.?|p\.?m\.?)\b|:\d\d", after) or re.search(r"\d:$", text[max(0, m.start() - 3):m.start()]):
+            continue  # clock times ("10 AM", "6:30") are not claims
+        digits_around = re.sub(r"[\s-]", "", text[max(0, m.start() - 15):m.end() + 15])
+        if re.search(r"\+?\d{8,}", digits_around) and re.search(r"(call|phone|whatsapp|mobile|contact|\+\d)",
+                                                              text[max(0, m.start() - 40):m.end() + 40], re.I) \
+                or len(re.sub(r"\D", "", raw)) >= 8:
+            continue  # phone numbers are not claims
         value = float(raw.replace(",", ""))
         if suffix.lower() == "k":
             value *= 1000

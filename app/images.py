@@ -294,7 +294,7 @@ def review_image(media, intent, kit, caption, caption_findings):
                 {"type": "image", "source": {"type": "base64", "media_type": media["mime"], "data": media["data"]}},
                 {"type": "text", "text": "Report the text in this image and a suggested alt text."}]}])
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
-        return _offline(media, intent, kit, caption, f"AI image review unavailable ({getattr(exc, 'status_code', 'network')}); "
+        return _offline(media, intent, kit, caption, f"AI image review unavailable ({agent.api_error(exc)}); "
                         "colours and alt text were checked in code.")
     cost = agent.budget.add(agent.MODEL, response.usage)
     call = next((b for b in response.content if b.type == "tool_use" and b.name == "report_image"), None)

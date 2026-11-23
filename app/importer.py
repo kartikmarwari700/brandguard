@@ -120,7 +120,7 @@ def _ai_extract(pages, kit):
             model=agent.MODEL, max_tokens=8000, system=EXTRACT_PROMPT, tools=[EXTRACT_TOOL], output_config={"effort": "low"},
             messages=[{"role": "user", "content": f"Brand: {kit['brand']['name']}\n\n{doc}"}])
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
-        return None, f"AI extraction unavailable ({getattr(exc, 'status_code', 'network')}); simple extraction in code was used.", 0.0
+        return None, f"AI extraction unavailable ({agent.api_error(exc)}); simple extraction in code was used.", 0.0
     cost = agent.budget.add(agent.MODEL, response.usage)
     call = next((b for b in response.content if b.type == "tool_use" and b.name == "propose_items"), None)
     if not call:

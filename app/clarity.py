@@ -145,7 +145,7 @@ def _ai_draft(rule, rows, kit):
             messages=[{"role": "user", "content": json.dumps(brief, ensure_ascii=False)}],
             output_config={"effort": "low"})
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
-        return None, f"AI drafting unavailable ({getattr(exc, 'status_code', 'network')}); drafted in code instead.", 0.0
+        return None, f"AI drafting unavailable ({agent.api_error(exc)}); drafted in code instead.", 0.0
     cost = agent.budget.add(agent.MODEL, response.usage)
     call = next((b for b in response.content if b.type == "tool_use" and b.name == "propose_rule"), None)
     if not call:

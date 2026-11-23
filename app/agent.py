@@ -119,6 +119,29 @@ def make_client():
                                timeout=45.0, max_retries=1)
 
 
+def api_error(exc):
+    """Short, key-free reason for an API failure, shown in the review note."""
+    code = getattr(exc, "status_code", None)
+    body = getattr(exc, "body", None)
+    msg = ""
+    if isinstance(body, dict):
+        msg = str((body.get("error") or {}).get("message") or "")
+    low = msg.lower()
+    if "credit balance" in low:
+        reason = "the API account has no credit left"
+    elif "spend limit" in low or "usage limit" in low or "limit" in low and code in (400, 429):
+        reason = "the API account reached its spend limit"
+    elif code == 401:
+        reason = "the API key was rejected"
+    elif code == 429:
+        reason = "too many requests right now"
+    elif code and code >= 500:
+        reason = "the AI service is busy"
+    else:
+        reason = msg[:120] or "request failed"
+    return f"{code or 'network'}: {reason}"
+
+
 REVIEW_DEADLINE = 100  # seconds for one whole review; the UI shows a spinner meanwhile
 
 
@@ -393,7 +416,7 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
                 break  # clean rewrite (or attempts used up): no need to pay for a closing message
     except anthropic.APIStatusError as exc:
         log.warning("Review Agent API error %s: %s", exc.status_code, exc.message)
-        return _offline_result(text, intent, kit, rule_findings, f"AI review unavailable ({exc.status_code}); rule checks only.")
+        return _offline_result(text, intent, kit, rule_findings, f"AI review unavailable ({api_error(exc)}); rule checks only.")
     except anthropic.APIConnectionError:
         log.warning("Review Agent could not reach the API")
         return _offline_result(text, intent, kit, rule_findings, "AI review unavailable (network); rule checks only.")
