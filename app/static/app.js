@@ -437,6 +437,79 @@ function imageBlock(sub, cur, ai, running) {
       : el("div", { class: "small muted" }, (ai && ai.note) || "No text found in the image."));
 }
 
+async function importPanel(isMgr) {
+  const imports = await api("/api/kit/imports");
+  const draft = imports.find((i) => i.status === "draft");
+  const status = el("div", { class: "small muted" });
+  const read = async (file) => {
+    const fd = new FormData(); fd.append("file", file, file.name);
+    status.replaceChildren(el("span", { class: "spinner" }), "Reading the document and checking every quote… this can take up to 30 seconds.");
+    try { await post("/api/kit/import", fd); toast("Candidates ready. Review them below."); route(); }
+    catch (e) { status.textContent = ""; toast(e.message, true); }
+  };
+  const input = el("input", { type: "file", accept: ".pdf,.docx", style: "width:auto" });
+  input.addEventListener("change", () => { if (input.files[0]) read(input.files[0]); });
+  const sample = el("button", { onclick: async () => {
+    try { const r = await fetch("/samples/codecraft-brand-guidelines.pdf"); const blob = await r.blob(); read(new File([blob], "codecraft-brand-guidelines.pdf", { type: "application/pdf" })); }
+    catch { toast("Could not load the sample PDF.", true); }
+  } }, "Try with our sample guideline PDF");
+  const head = el("div", {},
+    el("p", {}, "Upload the brand guideline PDF or Word file your organisation already has. The Review Agent proposes rules, glossary terms and approved facts, ",
+      "each with the page and the exact sentence it came from. Code keeps a candidate only if that sentence is really in the document, marks items already in the Brand Kit, ",
+      "and nothing is added until a Manager selects it."),
+    isMgr ? el("div", { class: "row" }, input, el("span", { class: "muted small" }, "or"), sample,
+      el("a", { href: "/samples/codecraft-brand-guidelines.pdf", target: "_blank", class: "small" }, "view the sample PDF"))
+      : el("div", { class: "intent" }, "Switch to Manager (top right) to import guidelines into the Brand Kit."),
+    status);
+  if (!draft) {
+    const past = imports.filter((i) => i.status !== "draft");
+    return el("div", {}, head, past.length ? el("div", {}, el("h3", {}, "Earlier imports"), past.map((i) =>
+      el("div", { class: "small", style: "margin:4px 0" }, `${i.filename} · ${i.items.length} candidates · ${i.status}`, i.added ? ` · added ${i.added.join(", ")}` : ""))) : null);
+  }
+  const KIND = { rule: "Rule", term: "Glossary term", fact: "Approved fact" };
+  const rows = draft.items.map((it) => {
+    const d = it.data, box = el("input", { type: "checkbox", style: "width:auto" });
+    if (!it.duplicate_of) box.checked = true;
+    const f = {};
+    if (it.kind === "rule") {
+      f.title = el("input", { value: d.title }); f.text = el("textarea", { rows: 2 }, d.text);
+      f.severity = el("select", {}, ["critical", "major", "minor"].map((v) => el("option", { selected: v === d.severity || null }, v)));
+      f.patterns = el("input", { value: (d.patterns || []).join(", "), placeholder: "phrases (optional)" });
+    } else if (it.kind === "term") {
+      f.preferred = el("input", { value: d.preferred }); f.variants = el("input", { value: d.variants.join(", ") });
+    } else {
+      f.statement = el("input", { value: d.statement }); f.value = el("input", { value: d.value, type: "number", step: "any" });
+      f.unit = el("input", { value: d.unit }); f.valid_until = el("input", { value: d.valid_until, type: "date" });
+    }
+    const fields = Object.entries(f).map(([k2, i]) => el("div", {}, el("label", {}, { title: "Title", text: "Rule", severity: "Severity", patterns: "Phrases it flags",
+      preferred: "Use", variants: "Instead of (comma separated)", statement: "Fact", value: "Number", unit: "Unit", valid_until: "Valid until" }[k2]), i));
+    const row = el("div", { class: "importrow" + (it.duplicate_of ? " dup" : "") },
+      el("div", { class: "row", style: "justify-content:space-between" },
+        el("label", { class: "row", style: "margin:0;color:var(--ink);font-size:13px" }, box, el("b", {}, KIND[it.kind])),
+        el("span", { class: "small muted" }, `${it.page}`)),
+      el("div", { class: "small", style: "margin:4px 0" }, "Source: ", el("span", { class: "quote" }, `“${it.quote}”`)),
+      it.duplicate_of ? el("div", { class: "small c-major" }, `Already in the Brand Kit as ${it.duplicate_of}: not selected.`) : null,
+      it.expiry_guessed ? el("div", { class: "small c-major" }, "The document gives no end date: check “Valid until”.") : null,
+      el("div", { class: "grid2" }, fields));
+    row._pick = () => box.checked ? { index: it.index, data: Object.fromEntries(Object.entries(f).map(([k2, i]) =>
+      [k2, ["patterns", "variants"].includes(k2) ? i.value.split(",").map((x) => x.trim()).filter(Boolean) : i.value])) } : null;
+    return row;
+  });
+  return el("div", {}, head,
+    el("h3", {}, `Candidates from ${draft.filename} (${draft.pages} page${draft.pages > 1 ? "s" : ""})`),
+    el("div", { class: "small muted" }, draft.source === "ai" ? `Read by the Review Agent · API cost $${(draft.cost_usd || 0).toFixed(4)}` : "Read in code", draft.note ? ` · ${draft.note}` : ""),
+    draft.items.length ? rows : el("div", { class: "empty" }, "No rules, terms or facts were found."),
+    draft.rejected.length ? el("details", {}, el("summary", {}, `${draft.rejected.length} candidate(s) dropped by the quote check`),
+      el("ul", { class: "small" }, draft.rejected.map((r) => el("li", {}, `${r.kind || "item"} · ${r.page || "?"} · “${r.quote}” — ${r.reason}`)))) : null,
+    isMgr ? el("div", { class: "actions" },
+      el("button", { class: "good", onclick: async () => {
+        const items = rows.map((r) => r._pick()).filter(Boolean);
+        try { const res = await post(`/api/kit/imports/${draft.id}/apply`, { items }); KIT = null; toast(`Added ${res.added.length} item(s) as Brand Kit v${res.kit.version}. Drafts were re-checked.`); route(); }
+        catch (e) { toast(e.message, true); }
+      } }, "Add selected to the Brand Kit"),
+      el("button", { class: "danger", onclick: async () => { try { await post(`/api/kit/imports/${draft.id}/discard`); toast("Import discarded."); route(); } catch (e) { toast(e.message, true); } } }, "Discard")) : null);
+}
+
 // ---------------- brand kit
 let kitTab = "rules";
 async function kitView() {
@@ -444,7 +517,7 @@ async function kitView() {
   const isMgr = ROLE === "manager", today = new Date().toISOString().slice(0, 10);
   const del = (kind, id) => isMgr ? el("button", { class: "danger small", onclick: async () => {
     if (!confirm(`Delete ${id}?`)) return; try { await api(`/api/kit/${kind}/${id}`, { method: "DELETE" }); toast("Deleted."); route(); } catch (e) { toast(e.message, true); } } }, "Delete") : null;
-  const tabs = el("div", { class: "tabs" }, [["rules", `Rules (${k.rules.length})`], ["facts", `Approved facts (${k.facts.length})`], ["glossary", `Glossary (${k.glossary.length})`], ["voice", "Voice & colours"]]
+  const tabs = el("div", { class: "tabs" }, [["rules", `Rules (${k.rules.length})`], ["facts", `Approved facts (${k.facts.length})`], ["glossary", `Glossary (${k.glossary.length})`], ["voice", "Voice & colours"], ["import", "⇪ Import from guidelines"]]
     .map(([t, label]) => el("button", { class: kitTab === t ? "on" : "", onclick: () => { kitTab = t; route(); } }, label)));
   let body;
   if (kitTab === "rules") {
@@ -469,12 +542,14 @@ async function kitView() {
   } else if (kitTab === "glossary") {
     body = el("table", {}, el("tr", {}, el("th", {}, "ID"), el("th", {}, "Use"), el("th", {}, "Instead of"), el("th", {}, "Note"), el("th", {}, "")),
       k.glossary.map((t) => el("tr", {}, el("td", {}, el("span", { class: "rid" }, t.id)), el("td", { class: "c-ok" }, el("b", {}, t.preferred)), el("td", { class: "c-critical" }, t.variants.join(", ")), el("td", { class: "small" }, t.note), el("td", {}, del("glossary", t.id)))));
+  } else if (kitTab === "import") {
+    body = await importPanel(isMgr);
   } else {
     body = el("div", {}, el("p", {}, el("b", {}, "Voice: "), k.brand.voice), el("p", { class: "muted" }, k.brand.description),
       k.brand.palette.map((c) => el("div", { style: "margin:6px 0" }, el("span", { class: "swatch", style: `background:${c.hex}` }), `${c.name} · ${c.hex}`)));
   }
   let form = null;
-  if (isMgr && kitTab !== "voice") {
+  if (isMgr && kitTab !== "voice" && kitTab !== "import") {
     const fields = kitTab === "facts" ? [["statement", "Fact statement"], ["value", "Number"], ["unit", "Unit (students, %, partners…)"], ["keywords", "Keywords (comma separated)"], ["source", "Source"], ["owner", "Owner"], ["valid_until", "Valid until (YYYY-MM-DD)"]]
       : kitTab === "rules" ? [["title", "Rule title"], ["text", "Explanation"], ["category", "Category (tone, claims, messaging, accessibility)"], ["severity", "Severity (critical, major, minor)"], ["patterns", "Banned phrases (comma separated, optional)"], ["good", "Good example"], ["bad", "Bad example"]]
       : [["preferred", "Preferred term"], ["variants", "Wrong variants (comma separated)"], ["note", "Note"]];

@@ -571,3 +571,80 @@ def test_image_review_reads_text_measures_contrast_and_suggests_alt(client, monk
     monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "")
     after = client.post(f"/api/submissions/{sid}/accept", headers=h, json={"finding_id": alt["id"]}).json()
     assert after["current"]["media"]["alt"].startswith("Winter Bootcamp poster")
+
+
+# ---------------------------------------------------------------- Brand Kit import from guideline documents
+
+GUIDE = Path(__file__).resolve().parents[1] / "app" / "static" / "samples" / "codecraft-brand-guidelines.pdf"
+
+
+def _upload_guide(client, h, name="guidelines.pdf", data=None):
+    return client.post("/api/kit/import", headers=h, files={"file": (name, data if data is not None else GUIDE.read_bytes(), "application/pdf")})
+
+
+def test_import_without_ai_extracts_rules_and_terms_and_needs_a_manager(client):
+    m = W("visitor-imp-0001", "manager")
+    assert _upload_guide(client, W("visitor-imp-0001", "creator")).status_code == 403
+    bad = _upload_guide(client, m, "notes.txt", b"hello")
+    assert bad.status_code == 400 and "PDF or a Word" in bad.json()["detail"]
+    broken = _upload_guide(client, m, "broken.pdf", b"%PDF-1.4 nonsense")
+    assert broken.status_code == 400
+    imp = _upload_guide(client, m).json()
+    assert imp["source"] == "code" and imp["pages"] == 3 and imp["status"] == "draft"
+    terms = {i["data"]["preferred"]: i for i in imp["items"] if i["kind"] == "term"}
+    assert terms["online course"]["data"]["variants"] == ["e-course", "ecourse"]
+    assert terms["hackathon"]["data"]["variants"] == ["hack-a-thon", "hack a thon"] and terms["hackathon"]["page"] == "page 2"
+    assert terms["mentors"]["duplicate_of"] == "TERM-05" and terms["online course"]["duplicate_of"] is None
+    picks = [{"index": terms["online course"]["index"], "data": {}}, {"index": terms["hackathon"]["index"], "data": {"variants": ["hack-a-thon"]}}]
+    res = client.post(f"/api/kit/imports/{imp['id']}/apply", headers=m, json={"items": picks}).json()
+    assert len(res["added"]) == 2 and res["kit"]["version"] == 2
+    added = {t["preferred"]: t for t in res["kit"]["glossary"] if t["id"] in res["added"]}
+    assert added["hackathon"]["variants"] == ["hack-a-thon"] and "page 2" in added["online course"]["imported_from"]
+    again = client.post(f"/api/kit/imports/{imp['id']}/apply", headers=m, json={"items": picks})
+    assert again.status_code == 409
+    sub = client.post("/api/submissions", headers=W("visitor-imp-0001"), json={"title": "t", "content": "Join our e-course at CodeCraft Academy. Sign up today.",
+                                                                                "intent": {"cta": "sign up"}}).json()
+    assert any(f["rule_id"] == added["online course"]["id"] and f["fix"] == "online course" for f in sub["current"]["findings"])
+
+
+def test_import_with_simulated_model_keeps_only_quotes_found_in_the_document(client, monkeypatch):
+    import anthropic
+
+    from app import agent
+    m = W("visitor-imp-0002", "manager")
+    client.get("/api/kit", headers=m)   # seed before the simulated key is set
+    agent.budget.reset()
+    blank = {"title": "", "text": "", "category": "tone", "severity": "major", "patterns": [], "preferred": "", "variants": [],
+             "statement": "", "value": 0, "unit": "", "valid_until": ""}
+    items = [
+        {**blank, "kind": "rule", "page": "page 1", "quote": "Avoid corporate jargon such as synergy, leverage and paradigm shift.",
+         "title": "No corporate jargon", "text": "Avoid corporate jargon.", "patterns": ["synergy", "leverage", "paradigm shift"]},
+        {**blank, "kind": "fact", "page": "page 2", "quote": "Approved figures: CodeCraft Academy has 45 mentors (source: HR roster, valid until 2027-06-30).",
+         "statement": "CodeCraft Academy has 45 mentors.", "value": 45, "unit": "mentors", "valid_until": "2027-06-30"},
+        {**blank, "kind": "fact", "page": "page 2", "quote": "The Summer Bootcamp runs for 6 weeks.", "statement": "The Summer Bootcamp runs for 6 weeks.",
+         "value": 6, "unit": "weeks"},
+        {**blank, "kind": "fact", "page": "page 2", "quote": "CodeCraft Academy has 120 hiring partners.", "statement": "CodeCraft Academy has 120 hiring partners.",
+         "value": 120, "unit": "partners"},
+        {**blank, "kind": "rule", "page": "page 1", "quote": "Always use exclamation marks to sound exciting.", "title": "Be exciting", "text": "Use exclamation marks."},
+    ]
+    calls = []
+    monkeypatch.setattr(anthropic, "Anthropic", _fake_client([NS(stop_reason="tool_use", content=[
+        NS(type="tool_use", id="i1", name="propose_items", input={"items": items})])], calls))
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    imp = _upload_guide(client, m).json()
+    assert imp["source"] == "ai" and "=== page 2 ===" in calls[0]["messages"][0]["content"]
+    assert [r["quote"] for r in imp["rejected"]] == ["Always use exclamation marks to sound exciting."]   # invented: not in the document
+    by = {i["data"].get("title") or i["data"].get("statement"): i for i in imp["items"]}
+    assert by["CodeCraft Academy has 45 mentors."]["data"]["valid_until"] == "2027-06-30"
+    assert by["The Summer Bootcamp runs for 6 weeks."]["expiry_guessed"] is True
+    assert by["CodeCraft Academy has 120 hiring partners."]["duplicate_of"] == "FACT-04"
+    assert by["No corporate jargon"]["data"]["patterns"] == ["synergy", "leverage", "paradigm shift"]
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "")
+    res = client.post(f"/api/kit/imports/{imp['id']}/apply", headers=m, json={"items": [
+        {"index": by["No corporate jargon"]["index"]}, {"index": by["CodeCraft Academy has 45 mentors."]["index"]}]}).json()
+    fact = next(f for f in res["kit"]["facts"] if f["id"] in res["added"])
+    assert fact["value"] == 45 and fact["unit"] == "mentors"
+    check = client.post("/api/submissions", headers=W("visitor-imp-0002"), json={"title": "t", "content": "Our 60 mentors bring synergy. Sign up today.",
+                                                                                  "intent": {"cta": "sign up"}}).json()
+    found = {(f["rule_id"], f["quote"]) for f in check["current"]["findings"]}
+    assert ("CLAIM-01", "60") in found and any(q == "synergy" for _, q in found)

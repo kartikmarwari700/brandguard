@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, clarity, images, store
+from . import agent, clarity, images, importer, store
 
 app = FastAPI(title="BrandGuard API", version="1.0.0",
               description="Explainable brand governance before publishing. Team Cite or Flag, CodeZen India 2026.")
@@ -133,6 +133,39 @@ def status():
 @app.get("/api/kit")
 def kit():
     return store.get_kit()
+
+
+class ImportItem(BaseModel):
+    index: int
+    data: dict = {}
+
+
+class ImportApply(BaseModel):
+    items: List[ImportItem]
+
+
+@app.post("/api/kit/import")
+async def kit_import(file: UploadFile = File(...), x_role: Optional[str] = Header(None)):
+    role = role_of(x_role)
+    data = await file.read(importer.MAX_FILE + 1)
+    return await run_in_threadpool(importer.extract, file.filename, data, role)
+
+
+@app.get("/api/kit/imports")
+def kit_imports():
+    return importer.list_imports()
+
+
+@app.post("/api/kit/imports/{pid}/apply")
+def kit_import_apply(pid: int, body: ImportApply, x_role: Optional[str] = Header(None)):
+    added = importer.apply_import(pid, [i.model_dump() for i in body.items], role_of(x_role))
+    return {"added": added, "import": importer.get_import(pid), "kit": store.get_kit()}
+
+
+@app.post("/api/kit/imports/{pid}/discard")
+def kit_import_discard(pid: int, x_role: Optional[str] = Header(None)):
+    importer.discard_import(pid, role_of(x_role))
+    return importer.get_import(pid)
 
 
 @app.post("/api/kit/{kind}")

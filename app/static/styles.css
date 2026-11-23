@@ -108,3 +108,7 @@ body.busy { cursor: progress; }
 .colour.bad { border-color: #f3c1c1; background: var(--bad-soft); color: var(--bad); }
 .colour.ok { color: var(--good); }
 .where { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+.importrow { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; background: #fff; }
+.importrow.dup { background: var(--soft); opacity: .85; }
+.importrow label { margin-top: 6px; }
+.importrow textarea { min-height: 56px; }
