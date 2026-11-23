@@ -5,14 +5,14 @@ import re
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, clarity, store
+from . import agent, clarity, images, store
 
 app = FastAPI(title="BrandGuard API", version="1.0.0",
               description="Explainable brand governance before publishing. Team Cite or Flag, CodeZen India 2026.")
@@ -83,8 +83,12 @@ class NewSubmission(BaseModel):
     intent: Intent = Intent()
 
 
+MAX_IMAGE_READ = images.MAX_UPLOAD + 1
+
+
 class TextBody(BaseModel):
     text: str = Field("", max_length=8000)
+    alt: Optional[str] = Field(None, max_length=300)
 
 
 class FindingBody(BaseModel):
@@ -175,6 +179,31 @@ def new_submission(body: NewSubmission, x_role: Optional[str] = Header(None)):
     return store.get_submission(sid)
 
 
+@app.post("/api/submissions/image")
+async def new_image_submission(file: UploadFile = File(...), title: str = Form("", max_length=120),
+                               channel: str = Form("Instagram post", max_length=60), caption: str = Form("", max_length=4000),
+                               alt: str = Form("", max_length=300), purpose: str = Form("", max_length=200),
+                               audience: str = Form("", max_length=200), cta: str = Form("", max_length=100),
+                               x_role: Optional[str] = Header(None)):
+    role = role_of(x_role)
+    media = await run_in_threadpool(images.load_upload, await file.read(MAX_IMAGE_READ), alt)
+    intent = {"purpose": purpose, "audience": audience, "cta": cta}
+    sid = await run_in_threadpool(store.create_submission, title or file.filename or "Image", channel, caption, intent, role,
+                                  True, media)
+    return await run_in_threadpool(store.get_submission, sid)
+
+
+@app.post("/api/submissions/{sid}/image")
+async def replace_image(sid: int, file: UploadFile = File(...), x_role: Optional[str] = Header(None)):
+    role = role_of(x_role)
+    cur = await run_in_threadpool(store.get_submission, sid)
+    if cur["kind"] != "image":
+        raise HTTPException(400, "This content has no image.")
+    media = await run_in_threadpool(images.load_upload, await file.read(MAX_IMAGE_READ), (cur["current"]["media"] or {}).get("alt", ""))
+    await run_in_threadpool(store.edit_content, sid, cur["current"]["content"], role, media)
+    return await run_in_threadpool(store.get_submission, sid)
+
+
 @app.get("/api/submissions/{sid}")
 def submission(sid: int):
     return store.get_submission(sid)
@@ -200,7 +229,7 @@ def apply_rewrite(sid: int, x_role: Optional[str] = Header(None)):
 
 @app.post("/api/submissions/{sid}/edit")
 def edit(sid: int, body: TextBody, x_role: Optional[str] = Header(None)):
-    store.edit_content(sid, body.text, role_of(x_role))
+    store.edit_content(sid, body.text, role_of(x_role), alt=body.alt)
     return store.get_submission(sid)
 
 

@@ -180,6 +180,36 @@
       "text": "All-caps words are read letter by letter by some screen readers and feel like shouting.",
       "good": "Free webinar on Friday.",
       "bad": "FREE WEBINAR ON FRIDAY."
+    },
+    {
+      "id": "ACC-04",
+      "category": "accessibility",
+      "severity": "major",
+      "title": "Images need meaningful alt text",
+      "text": "Every image needs alt text that says what it shows, including any text in it, so screen-reader users get the same message.",
+      "good": "Poster: three learners at laptops. Text: Winter Bootcamp, 70% off until 30 Nov 2026.",
+      "bad": "poster",
+      "patterns": []
+    },
+    {
+      "id": "ACC-05",
+      "category": "accessibility",
+      "severity": "major",
+      "title": "Readable text contrast",
+      "text": "Text in images must meet WCAG contrast: at least 4.5:1, or 3:1 for large headlines.",
+      "good": "Ink #1A1F2B text on Paper #F7F8FC.",
+      "bad": "Light yellow text on white.",
+      "patterns": []
+    },
+    {
+      "id": "VIS-01",
+      "category": "visual",
+      "severity": "major",
+      "title": "Use brand colours",
+      "text": "Main colours in images come from the brand palette (Craft Blue, Ink, Spark Orange, Paper); white, black and greys are always fine.",
+      "good": "Craft Blue background with Paper text.",
+      "bad": "A bright magenta background.",
+      "patterns": []
     }
   ],
   "glossary": [
@@ -345,6 +375,18 @@
     }
   ],
   "samples": [
+    {
+      "title": "Poster: Winter Bootcamp",
+      "channel": "Instagram post",
+      "content": "Our Winter Bootcamp is open for college students. Sign up today.",
+      "image": "poster-winter-bootcamp.png",
+      "alt": "poster",
+      "intent": {
+        "purpose": "Promote the Winter Bootcamp",
+        "audience": "College students",
+        "cta": "sign up"
+      }
+    },
     {
       "title": "Instagram: Winter Bootcamp launch",
       "channel": "Instagram post",

@@ -121,11 +121,12 @@ async function inbox() {
           el("li", {}, "Switch to Reviewer or Manager (top right) and approve. Critical issues need a Manager."))),
       el("div", { class: "row" },
         first ? el("button", { class: "primary", onclick: () => { location.hash = `#/s/${first.id}`; } }, "Start with a sample →") : null,
-        el("button", { onclick: () => { location.hash = "#/new"; } }, "Check your own text"))),
+        el("button", { onclick: () => { location.hash = "#/new"; } }, "Check your own text or image"))),
     el("div", { class: "row", style: "justify-content:space-between;margin-bottom:10px" },
       el("h1", {}, "Content inbox"), el("span", { class: "muted small" }, `Brand: ${STATUS.brand} (fictional demo) · Brand Kit v${STATUS.kit_version}`)),
     subs.length ? el("div", { class: "cards" }, subs.map((s) =>
       el("div", { class: "card", onclick: () => { location.hash = `#/s/${s.id}`; } },
+        s.thumb ? el("img", { class: "thumb", src: s.thumb, alt: "" }) : null,
         el("div", { class: "row", style: "justify-content:space-between" },
           el("span", { class: "t" }, s.title), el("span", { class: `pill st-${s.status}` }, STATUS_TEXT[s.status])),
         el("span", { class: "muted small" }, `${s.channel} · v${s.version} · ${when(s.updated_at)}`),
@@ -136,6 +137,7 @@ async function inbox() {
       : el("div", { class: "empty panel" }, "No content yet. Click “+ New content”."));
 }
 
+let newMode = "text";
 const SAMPLE_NEW = {
   title: "Instagram: hackathon week offer", channel: "Instagram post",
   content: "Codecraft Academy is the best place to learn coding!!! Over 45,000 learners trust us and we guarantee you a job. Hurry, signup now.",
@@ -162,21 +164,56 @@ async function newView() {
     try { const r = await post("/api/extract-docx", fd); f.content.value = r.text; if (!f.title.value) f.title.value = file.files[0].name.replace(/\.docx$/i, ""); toast(r.truncated ? "Loaded (trimmed to 8,000 characters)." : "Document text loaded."); }
     catch (e) { toast(e.message, true); }
   });
+  const img = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp", style: "width:auto" });
+  const preview = el("img", { class: "preview hidden", alt: "" });
+  const alt = el("input", { placeholder: "Describe the image for screen-reader users (leave empty to see the check)" });
+  img.addEventListener("change", () => {
+    const file = img.files[0]; if (!file) return;
+    if (file.size > 4000000) { toast("The image is larger than 4 MB.", true); img.value = ""; return; }
+    preview.src = URL.createObjectURL(file); preview.classList.remove("hidden");
+    if (!f.title.value) f.title.value = file.name.replace(/\.[a-z]+$/i, "");
+  });
+  let mode = newMode;
+  const textPart = el("div", {}, el("label", {}, "Content"), f.content,
+    el("div", { class: "row", style: "margin-top:6px" }, el("span", { class: "small muted" }, "or upload a Word file:"), file));
+  const imagePart = el("div", {}, el("label", {}, "Image (PNG, JPG or WebP, up to 4 MB)"), img, preview,
+    el("label", {}, "Alt text"), alt, el("label", {}, "Caption (optional)"));
+  const tabs = el("div", { class: "tabs" });
+  const setMode = (m) => {
+    mode = newMode = m;
+    tabs.replaceChildren(...[["text", "Text or Word file"], ["image", "Image (poster, social post)"]].map(([k, label]) =>
+      el("button", { class: mode === k ? "on" : "", onclick: () => setMode(k) }, label)));
+    textPart.classList.toggle("hidden", m !== "text");
+    imagePart.classList.toggle("hidden", m !== "image");
+    if (m === "image") imagePart.append(f.content); else textPart.insertBefore(f.content, textPart.children[1]);
+    f.content.placeholder = m === "image" ? "The text that goes with the image (optional)" : "Paste your post, ad, email or document text here…";
+  };
+  setMode(mode);
   const submit = el("button", { class: "primary", onclick: async () => {
     submit.disabled = true; submit.textContent = "Checking…";
     try {
-      const s = await post("/api/submissions", { title: f.title.value, channel: f.channel.value, content: f.content.value,
-        intent: { purpose: f.purpose.value, audience: f.audience.value, cta: f.cta.value } });
+      let s;
+      if (mode === "image") {
+        if (!img.files[0]) throw new Error("Choose an image first.");
+        const fd = new FormData();
+        fd.append("file", img.files[0]); fd.append("title", f.title.value); fd.append("channel", f.channel.value);
+        fd.append("caption", f.content.value); fd.append("alt", alt.value);
+        fd.append("purpose", f.purpose.value); fd.append("audience", f.audience.value); fd.append("cta", f.cta.value);
+        s = await post("/api/submissions/image", fd);
+      } else {
+        s = await post("/api/submissions", { title: f.title.value, channel: f.channel.value, content: f.content.value,
+          intent: { purpose: f.purpose.value, audience: f.audience.value, cta: f.cta.value } });
+      }
       location.hash = `#/s/${s.id}`;
     } catch (e) { toast(e.message, true); submit.disabled = false; submit.textContent = "Check against Brand Kit"; }
   } }, "Check against Brand Kit");
   return el("div", { class: "panel", style: "max-width:860px;margin:auto" },
     el("div", { class: "row", style: "justify-content:space-between" }, el("h1", {}, "New content"),
-      el("button", { onclick: () => { f.title.value = SAMPLE_NEW.title; f.channel.value = SAMPLE_NEW.channel; f.content.value = SAMPLE_NEW.content; f.purpose.value = SAMPLE_NEW.intent.purpose; f.audience.value = SAMPLE_NEW.intent.audience; f.cta.value = SAMPLE_NEW.intent.cta; } }, "Fill a sample with mistakes")),
-    el("p", { class: "muted" }, "Paste text or upload a .docx. BrandGuard checks it against the Brand Kit before it is published."),
+      el("button", { onclick: () => { setMode("text"); f.title.value = SAMPLE_NEW.title; f.channel.value = SAMPLE_NEW.channel; f.content.value = SAMPLE_NEW.content; f.purpose.value = SAMPLE_NEW.intent.purpose; f.audience.value = SAMPLE_NEW.intent.audience; f.cta.value = SAMPLE_NEW.intent.cta; } }, "Fill a sample with mistakes")),
+    el("p", { class: "muted" }, "Paste text, upload a .docx or upload an image. BrandGuard checks it against the Brand Kit before it is published."),
+    tabs,
     el("div", { class: "grid2" }, el("div", {}, el("label", {}, "Title"), f.title), el("div", {}, el("label", {}, "Channel"), f.channel)),
-    el("label", {}, "Content"), f.content,
-    el("div", { class: "row", style: "margin-top:6px" }, el("span", { class: "small muted" }, "or upload a Word file:"), file),
+    textPart, imagePart,
     el("h3", {}, "Intent (helps keep your message when fixes are suggested)"),
     el("div", { class: "grid2" }, el("div", {}, el("label", {}, "Purpose"), f.purpose), el("div", {}, el("label", {}, "Audience"), f.audience)),
     el("label", {}, "Call to action"), f.cta,
@@ -184,9 +221,9 @@ async function newView() {
 }
 
 // ---------------- review screen
-function segments(content, findings, verified) {
+function segments(content, findings, verified, target = "text") {
   const spans = [];
-  findings.filter((f) => f.status === "open" && f.end > f.start).forEach((f) => spans.push({ s: f.start, e: f.end, cls: `hl-${f.severity}`, id: f.id, title: f.message }));
+  findings.filter((f) => f.status === "open" && f.end > f.start && (f.target || "text") === target).forEach((f) => spans.push({ s: f.start, e: f.end, cls: `hl-${f.severity}`, id: f.id, title: f.message }));
   verified.forEach((v) => { const i = content.indexOf(v.quote); if (i >= 0) spans.push({ s: i, e: i + v.quote.length, cls: "hl-ok", title: `Verified by ${v.fact_id}: ${v.statement}` }); });
   // Overlapping findings: cut the text at every boundary and show the most severe (then most specific) finding
   // for each piece, so a long-sentence hint never hides a critical claim inside it.
@@ -216,7 +253,9 @@ function findingCard(sub, f) {
     el("div", { class: "h" },
       el("span", {}, el("span", { class: `sev c-${f.severity}` }, f.severity), " · ", cap(f.category), f.source === "ai" ? el("span", { class: "ai-tag" }, "AI agent") : null),
       el("span", { class: "row" }, f.cited.map((c) => el("span", { class: "rid", title: ruleInfo(c) }, c)))),
-    f.quote ? el("div", { style: "margin:4px 0" }, el("span", { class: "quote" }, f.quote)) : null,
+    f.target && f.target !== "text" ? el("div", { class: "where" }, { image: "🖼 In the image", alt: "♿ Alt text", image_text: "🖼 Text in the image" }[f.target] || "") : null,
+    f.quote ? el("div", { style: "margin:4px 0" }, f.swatch ? el("span", { class: "swatch", style: `background:${f.swatch}` }) : null, el("span", { class: "quote" }, f.quote),
+      f.suggest && f.rule_id === "VIS-01" ? el("span", {}, " → ", el("span", { class: "swatch", style: `background:${f.suggest};margin-left:4px` }), el("span", { class: "quote" }, f.suggest)) : null) : null,
     el("div", {}, f.message),
     fixText ? el("div", { class: "fix" }, "Suggested fix: ", fixText) : null,
     f.fix_note ? el("div", { class: "small muted" }, "Tip: ", f.fix_note) : null,
@@ -272,12 +311,24 @@ function actionBar(sub) {
       : st === "in_review" ? "Sent for review. Switch to Reviewer or Manager to approve." : st === "changes_requested" ? "The reviewer asked for changes. Update the text, then submit again." : "When you are happy, send it for review.";
     return el("div", { class: "actionbar" }, el("span", { class: "msg" }, hint),
       el("button", { onclick: () => {
-        const t = el("textarea", { style: "min-height:200px" }); t.value = sub.current.content;
-        modal(el("h2", {}, "Edit text"), el("p", { class: "muted small" }, "Saving creates a new version that is checked again automatically."), t,
+        const isImg = sub.kind === "image";
+        const t = el("textarea", { style: `min-height:${isImg ? 90 : 200}px` }); t.value = sub.current.content;
+        const altIn = el("input", { value: (sub.current.media || {}).alt || "" });
+        modal(el("h2", {}, isImg ? "Edit caption and alt text" : "Edit text"), el("p", { class: "muted small" }, "Saving creates a new version that is checked again automatically."),
+          isImg ? el("label", {}, "Caption") : null, t, isImg ? el("label", {}, "Alt text") : null, isImg ? altIn : null,
           el("div", { class: "actions" }, el("button", { class: "primary", onclick: async () => {
-            try { await post(`/api/submissions/${sub.id}/edit`, { text: t.value }); closeModal(); toast("Saved as a new version."); route(); } catch (e) { toast(e.message, true); }
+            try { await post(`/api/submissions/${sub.id}/edit`, isImg ? { text: t.value, alt: altIn.value } : { text: t.value }); closeModal(); toast("Saved as a new version."); route(); } catch (e) { toast(e.message, true); }
           } }, "Save and re-check"), el("button", { onclick: closeModal }, "Cancel")));
-      } }, "Edit text"),
+      } }, sub.kind === "image" ? "Edit caption / alt text" : "Edit text"),
+      sub.kind === "image" ? (() => {
+        const up = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp", class: "hidden" });
+        up.addEventListener("change", async () => {
+          if (!up.files[0]) return;
+          const fd = new FormData(); fd.append("file", up.files[0]);
+          try { await post(`/api/submissions/${sub.id}/image`, fd); toast("New image uploaded as a new version."); route(); } catch (e) { toast(e.message, true); }
+        });
+        return el("span", {}, up, el("button", { onclick: () => up.click() }, "Upload new image"));
+      })() : null,
       el("button", { class: "primary", disabled: st === "in_review" || null, onclick: async () => {
         try { await post(`/api/submissions/${sub.id}/submit`); toast("Sent for review. Now switch to Reviewer or Manager."); route(); } catch (e) { toast(e.message, true); }
       } }, st === "in_review" ? "In review" : "Submit for review"));
@@ -302,6 +353,7 @@ async function reviewView(id) {
   const open = cur.findings.filter((f) => f.status === "open"), dismissed = cur.findings.filter((f) => f.status !== "open");
   if (running) { clearTimeout(pollTimer); pollTimer = setTimeout(() => { if (location.hash === `#/s/${id}`) route(); }, 2500); }
 
+  const isImg = sub.kind === "image";
   const left = el("div", {},
     el("div", { class: "panel" },
       el("div", { class: "statusbar" },
@@ -315,9 +367,11 @@ async function reviewView(id) {
           try { await post(`/api/submissions/${sub.id}/recheck`); toast("Re-checked against the latest Brand Kit."); route(); } catch (e) { toast(e.message, true); }
         } }, "Re-check now") : el("div", { class: "small" }, "Create updated content from “+ New content” before publishing this again.")) : null,
       el("div", { class: "row", style: "margin-bottom:6px" }, counts(sub.approval.open_counts, cur.verified.length)),
-      el("div", { class: "content" }, segments(cur.content, cur.findings, cur.verified)),
-      el("h3", {}, "Suggested version"),
-      running ? el("div", { class: "rewrite muted" }, el("span", { class: "spinner" }), "The AI Review Agent is checking tone, messaging and claims, and preparing a suggested version…")
+      isImg ? imageBlock(sub, cur, ai, running) : null,
+      isImg ? el("h3", {}, "Caption") : null,
+      el("div", { class: "content" }, isImg && !cur.content ? el("span", { class: "muted" }, "No caption.") : segments(cur.content, cur.findings, cur.verified)),
+      isImg ? null : el("h3", {}, "Suggested version"),
+      isImg ? null : running ? el("div", { class: "rewrite muted" }, el("span", { class: "spinner" }), "The AI Review Agent is checking tone, messaging and claims, and preparing a suggested version…")
         : ai && ai.rewrite && ai.rewrite.trim() !== cur.content.trim() ? el("div", {},
           el("div", { class: "rewrite" }, ai.rewrite),
           ai.rewrite_check ? el("div", { class: "small", style: `margin-top:4px;color:${ai.rewrite_check.ok ? "var(--good)" : "var(--major)"}` },
@@ -337,7 +391,10 @@ async function reviewView(id) {
       el("h2", {}, "Version history"),
       el("table", {}, el("tr", {}, el("th", {}, "Version"), el("th", {}, "By"), el("th", {}, "Change"), el("th", {}, "When"), el("th", {}, "")),
         sub.versions.slice().reverse().map((v) => el("tr", {}, el("td", {}, `v${v.n}`), el("td", {}, cap(v.author)), el("td", {}, v.note), el("td", { class: "small" }, when(v.created_at)),
-          el("td", {}, v.n > 1 ? el("button", { onclick: () => { const prev = sub.versions.find((p) => p.n === v.n - 1); modal(el("h2", {}, `Changes in v${v.n}`), diffWords(prev.content, v.content), el("div", { class: "actions" }, el("button", { onclick: closeModal }, "Close"))); } }, "Compare") : null)))),
+          el("td", {}, v.n > 1 ? el("button", { onclick: () => { const prev = sub.versions.find((p) => p.n === v.n - 1); modal(el("h2", {}, `Changes in v${v.n}`),
+            isImg ? el("h3", {}, "Caption") : null, diffWords(prev.content, v.content),
+            isImg ? el("h3", {}, "Alt text") : null, isImg ? diffWords(prev.alt || "", v.alt || "") : null,
+            el("div", { class: "actions" }, el("button", { onclick: closeModal }, "Close"))); } }, "Compare") : null)))),
       sub.comments.length ? el("div", {}, el("h3", {}, "Comments"), sub.comments.map((c) => el("div", { class: "small", style: "margin:4px 0" }, el("b", {}, cap(c.role)), `: ${c.text}`, el("span", { class: "muted" }, ` · ${when(c.created_at)}`)))) : null,
       el("h3", {}, "Activity (audit log)"),
       el("div", { class: "tl" }, sub.audit.map((a) => el("div", {}, el("b", {}, cap(a.role)), ` · ${a.action.replace(".", " ")} · ${a.detail || ""} `, el("span", { class: "muted" }, when(a.ts)))))));
@@ -353,6 +410,31 @@ async function reviewView(id) {
 
   return el("div", {}, el("div", { class: "row", style: "margin-bottom:10px" }, el("a", { href: "#/" }, "← Inbox")),
     el("div", { class: "review" }, left, right), actionBar(sub));
+}
+
+function imageBlock(sub, cur, ai, running) {
+  const m = cur.media || {};
+  const boxes = ((ai && ai.elements) || []).map((e) => {
+    const finding = cur.findings.find((f) => f.rule_id === "ACC-05" && f.quote === e.text.slice(0, 80) && f.status === "open");
+    const bad = e.measure && !e.measure.pass;
+    return el("div", { class: "box" + (bad ? "" : " ok"), "data-fid": finding ? finding.id : "",
+      style: `left:${e.box.x * 100}%;top:${e.box.y * 100}%;width:${e.box.w * 100}%;height:${e.box.h * 100}%`,
+      title: e.measure ? `“${e.text}”: contrast ${e.measure.ratio}:1 (needs ${e.measure.need}:1)` : `“${e.text}”`,
+      onclick: () => { if (finding) { const c = document.getElementById(`f-${finding.id}`); if (c) c.scrollIntoView({ behavior: "smooth", block: "center" }); } } },
+      bad ? el("span", { class: "boxlabel" }, `${e.measure.ratio}:1`) : null);
+  });
+  return el("div", {},
+    el("div", { class: "imgwrap" }, el("img", { src: `data:${m.mime};base64,${m.data}`, alt: m.alt || "" }), boxes),
+    el("div", { class: "small muted", style: "margin:4px 0 8px" }, `${m.width} × ${m.height} px · red boxes = text below WCAG contrast, green = readable`),
+    el("h3", {}, "Main colours vs brand palette"),
+    el("div", { class: "row" }, (m.colours || []).map((c) => el("span", { class: "colour " + (c.ok ? "ok" : "bad"), title: c.nearest ? `Nearest brand colour: ${c.nearest.name} ${c.nearest.hex} (ΔE ${c.nearest.delta_e})` : "" },
+      el("span", { class: "swatch", style: `background:${c.hex}` }), `${c.hex} · ${Math.round(c.share * 100)}% · ${c.ok ? "✔ brand or neutral" : "✖ off-palette"}`))),
+    el("h3", {}, "Alt text"),
+    el("div", { class: m.alt ? "" : "c-major" }, m.alt ? `“${m.alt}”` : "Missing"),
+    el("h3", {}, "Text in the image"),
+    running ? el("div", { class: "small muted" }, el("span", { class: "spinner" }), "The Review Agent is reading the text in the image; contrast is measured in code…")
+      : ai && ai.image_text ? el("div", { class: "content" }, segments(ai.image_text, cur.findings, ai.image_verified || [], "image_text"))
+      : el("div", { class: "small muted" }, (ai && ai.note) || "No text found in the image."));
 }
 
 // ---------------- brand kit

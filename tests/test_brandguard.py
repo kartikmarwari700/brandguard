@@ -109,7 +109,9 @@ def H(role):
 
 def test_seeded_demo_is_ready_for_judges(client):
     subs = client.get("/api/submissions").json()
-    assert len(subs) == 5 and all(s["kind"] == "text" for s in subs)
+    assert len(subs) == 6 and sorted(s["kind"] for s in subs) == ["image"] + ["text"] * 5
+    poster = next(s for s in subs if s["kind"] == "image")
+    assert poster["thumb"].startswith("data:image/jpeg;base64,")
     assert client.get("/api/status").json()["ai"] is False
     assert client.get("/").status_code == 200
 
@@ -499,3 +501,73 @@ def test_clarity_draft_with_simulated_model(client, monkeypatch):
     assert draft["source"] == "ai" and draft["after"]["patterns"] == ["guys", "sup"]   # too-short phrase dropped
     assert draft["evidence"]["accepted_lost"] == ["awesome"]   # code shows what the draft would stop catching
     assert calls[0]["tools"][0]["name"] == "propose_rule" and calls[0]["model"] == "claude-haiku-5-5"
+
+
+# ---------------------------------------------------------------- images: brand colours, contrast, alt text (I3)
+
+POSTER = Path(__file__).resolve().parents[1] / "app" / "seed" / "poster-winter-bootcamp.png"
+
+
+def test_image_upload_runs_colour_and_alt_checks_in_code(client):
+    h = W("visitor-img-0001")
+    bad = client.post("/api/submissions/image", headers=h, files={"file": ("x.png", b"not an image", "image/png")})
+    assert bad.status_code == 400 and "not a readable" in bad.json()["detail"]
+    sub = client.post("/api/submissions/image", headers=h, files={"file": ("poster.png", POSTER.read_bytes(), "image/png")},
+                      data={"title": "Poster", "caption": "Sign up today.", "alt": "", "cta": "sign up"}).json()
+    assert sub["kind"] == "image" and sub["current"]["media"]["width"] == 1024
+    rules = {f["rule_id"]: f for f in sub["current"]["findings"]}
+    assert rules["VIS-01"]["quote"].startswith("#D8") and rules["VIS-01"]["target"] == "image"
+    assert rules["ACC-04"]["severity"] == "major" and rules["ACC-04"]["target"] == "alt"
+    assert any(c["ok"] for c in sub["current"]["media"]["colours"])       # white counts as a neutral
+    assert "off" in sub["current"]["ai"]["note"]                           # rules-only: text in the image needs the AI
+    edited = client.post(f"/api/submissions/{sub['id']}/edit", headers=h,
+                         json={"text": "Sign up today.", "alt": "Winter Bootcamp poster with a magenta header and the offer text."}).json()
+    assert edited["current"]["n"] == 2 and not any(f["rule_id"] == "ACC-04" for f in edited["current"]["findings"])
+    accept = client.post(f"/api/submissions/{sub['id']}/accept", headers=h, json={"finding_id": rules["VIS-01"]["id"]})
+    assert accept.status_code == 409   # stale finding from v1: the screen refreshes
+    v2_vis = next(f for f in edited["current"]["findings"] if f["rule_id"] == "VIS-01")
+    no_fix = client.post(f"/api/submissions/{sub['id']}/accept", headers=h, json={"finding_id": v2_vis["id"]})
+    assert no_fix.status_code == 400 and "no automatic fix" in no_fix.json()["detail"]
+
+
+def test_image_review_reads_text_measures_contrast_and_suggests_alt(client, monkeypatch):
+    import anthropic
+
+    from app import agent, images
+    h = W("visitor-img-0002")
+    client.get("/api/submissions", headers=h)      # seed first, without the simulated key
+    agent.budget.reset()
+    images._cache.clear()
+    read = NS(type="tool_use", id="r1", name="report_image", input={"alt_text": "Winter Bootcamp poster: 70% off for college students.", "texts": [
+        {"text": "WINTER BOOTCAMP", "x": 0.2, "y": 0.1, "w": 0.6, "h": 0.3, "size": "large"},
+        {"text": "India's #1 coding platform", "x": 0.1, "y": 0.42, "w": 0.8, "h": 0.08, "size": "normal"},
+        {"text": "50,000+ students already enrolled", "x": 0.1, "y": 0.64, "w": 0.8, "h": 0.07, "size": "normal"},
+        {"text": "70% OFF · LAST CHANCE!!!", "x": 0.1, "y": 0.73, "w": 0.8, "h": 0.08, "size": "large"},
+        {"text": "Sign up at codecraft.example", "x": 0.15, "y": 0.855, "w": 0.7, "h": 0.06, "size": "normal"}]})
+    calls = []
+    monkeypatch.setattr(anthropic, "Anthropic", _fake_client([NS(stop_reason="tool_use", content=[read])], calls))
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "test-key")
+    sub = client.post("/api/submissions/image", headers=h, files={"file": ("poster.png", POSTER.read_bytes(), "image/png")},
+                      data={"title": "Poster", "caption": "Our Winter Bootcamp is open.", "alt": "poster", "cta": "sign up"}).json()
+    sid = sub["id"]
+    import time
+    for _ in range(50):
+        sub = client.get(f"/api/submissions/{sid}", headers=h).json()
+        if sub["current"]["ai_status"] != "running":
+            break
+        time.sleep(0.1)
+    ai = sub["current"]["ai"]
+    assert calls[0]["messages"][0]["content"][0]["type"] == "image"
+    failing = {e["text"]: e["measure"]["pass"] for e in ai["elements"]}
+    assert failing == {"WINTER BOOTCAMP": True, "India's #1 coding platform": True, "50,000+ students already enrolled": False,
+                       "70% OFF · LAST CHANCE!!!": False, "Sign up at codecraft.example": True}
+    found = {(f["rule_id"], f["quote"]) for f in sub["current"]["findings"]}
+    assert ("ACC-05", "50,000+ students already enrolled") in found and ("CLAIM-02", "#1") in found
+    assert ("CLAIM-01", "50,000") in found and not any(f[0] == "MSG-01" for f in found)   # the CTA is in the image
+    claim = next(f for f in sub["current"]["findings"] if f["rule_id"] == "CLAIM-01")
+    assert claim["target"] == "image_text" and claim["fix"] is None and "38,000" in claim["fix_note"]
+    alt = next(f for f in sub["current"]["findings"] if f["rule_id"] == "ACC-04")
+    assert alt["fix"] == "Winter Bootcamp poster: 70% off for college students." and alt["source"] == "ai"
+    monkeypatch.setenv("BRANDGUARD_ANTHROPIC_API_KEY", "")
+    after = client.post(f"/api/submissions/{sid}/accept", headers=h, json={"finding_id": alt["id"]}).json()
+    assert after["current"]["media"]["alt"].startswith("Winter Bootcamp poster")

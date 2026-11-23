@@ -268,7 +268,8 @@ def create_version(submission_id, content, author, note, background=True, media=
     sub = q("SELECT * FROM submissions WHERE id = ?", (submission_id,), one=True)
     intent = json.loads(sub["intent"])
     kit = get_kit()
-    findings, verified = engine.run_rule_checks(content, kit, intent) if content.strip() or not media else ([], [])
+    # for images the call to action may be in the picture, so it is checked later together with the text the AI reads
+    findings, verified = engine.run_rule_checks(content, kit, None if media else intent) if content.strip() else ([], [])
     if media:
         from . import images
         findings = findings + images.check_image(media, kit)
@@ -340,7 +341,10 @@ def _unstick(cur):
 def _all_findings(version_row, dismissed):
     ai = json.loads(version_row["ai"]) if version_row["ai"] else None
     items = json.loads(version_row["findings"]) + ((ai or {}).get("findings") or [])
+    suggestion = (ai or {}).get("alt_suggestion")
     for f in items:
+        if suggestion and f["rule_id"] == "ACC-04" and f.get("target") == "alt" and f.get("fix") is None:
+            f["fix"], f["fix_note"], f["source"] = suggestion, "Alt text suggested by the Review Agent from what it sees.", "ai"
         reason = dismissed.get((f["rule_id"], f["quote"]))
         f["status"] = "dismissed" if reason is not None else "open"
         f["dismiss_reason"] = reason
