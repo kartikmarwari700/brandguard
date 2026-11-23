@@ -112,3 +112,4 @@ body.busy { cursor: progress; }
 .importrow.dup { background: var(--soft); opacity: .85; }
 .importrow label { margin-top: 6px; }
 .importrow textarea { min-height: 56px; }
+@media (max-width: 700px) { .actionbar { position: static; } .top { position: static; } }

@@ -4,111 +4,172 @@
 
 **Explainable brand governance before you hit publish.** Team **Cite or Flag** · CodeZen India 2026 · problem statement by Inkloom AI.
 
-**Live demo: https://brandguard-fa7o.onrender.com** · **Round 2 report:** [docs/CiteOrFlag-BrandGuard-Round2-Report.pdf](docs/CiteOrFlag-BrandGuard-Round2-Report.pdf) · no sign-in needed · the demo brand **CodeCraft Academy** and all its facts are fictional · free hosting: if the first load is slow, give it up to a minute.
+**Live demo: https://brandguard-fa7o.onrender.com** · no sign-in · each browser gets its own private demo workspace ·
+final report: [docs/CiteOrFlag-BrandGuard-Final-Report.pdf](docs/CiteOrFlag-BrandGuard-Final-Report.pdf)
 
-Content goes in before it is published (a post, an ad, an email or a Word document). BrandGuard checks it against the
-organisation's Brand Kit (rules, approved facts, terminology, brand colours). Every issue comes back with the **rule or fact
-it breaks** and a **suggested correction that keeps the creator's message**, and **a person makes the final approval**.
+Content goes in before it is published: a post, an ad, an email, a Word document or an image. BrandGuard checks it against the
+organisation's Brand Kit (rules, approved facts, terminology, brand colours and accessibility). Every issue comes back with the
+**rule or fact it breaks** and a **suggested fix that keeps the creator's message**, and **a person makes the final approval**.
+The guidelines themselves improve over time: rules people keep overriding are flagged and rewritten with evidence, and an
+existing guideline document can be imported instead of typed in.
 
-## Try it in 2 minutes (for judges)
+The demo brand **CodeCraft Academy**, its facts, sample posts, poster, guideline PDF and example review history are fictional.
 
-1. Open the live link. You start as **Creator** (role switch at the top right; no sign-in).
-2. Click **Start with a sample →**. The post is highlighted: red = critical, orange = major, yellow = minor, green = a claim verified against an approved fact.
-3. Each card on the right names the rule or fact (hover the ID), explains the problem and offers **Accept fix** or **Dismiss…** (a reason is required).
-4. Click **Accept suggested version** for a full corrected text, then **Submit for review**.
-5. Switch to **Reviewer**: you can approve only if no critical issue is open. Otherwise switch to **Manager** to sign off.
-6. See **Version history** (with a word-level compare), **Activity** (audit log), **Brand Kit** (as Manager you can add a fact and it is used immediately) and **Insights** (which rules people keep dismissing).
-7. **+ New content** lets you paste your own text or upload a `.docx`. **Reset demo data** in the footer restores the samples.
+---
 
-## What works (Round 2)
+## Try it in 3 minutes
 
-| Area | Completed |
+You need nothing but the link. The free server may take up to a minute to wake on the first visit.
+
+1. **Review a post.** You start as **Creator** (role switch, top right). Click **Start with a sample →**. Highlights show each issue:
+   red = critical, orange = major, yellow = minor, green = a claim verified against an approved fact. Each card names the rule
+   or fact, explains it and offers **Accept fix** or **Dismiss…** (with a reason).
+2. **Fix and approve.** Click **Accept suggested version**, then **Submit for review**. Switch to **Reviewer** and approve. If a
+   critical issue is still open, only a **Manager** can sign off.
+3. **Check an image.** Open **Poster: Winter Bootcamp**. Off-brand colours, text below WCAG contrast (red boxes on the image), claims
+   inside the image and weak alt text are reported; accept the suggested alt text, or **Upload new image**.
+4. **Improve a guideline.** Switch to **Manager**, open **Guideline Clarity**. The vague rule *Friendly but professional* is flagged.
+   Click **Draft a clearer rule**: compare before/after, see how past decisions would change, then **Apply to Brand Kit**.
+5. **Import guidelines.** As Manager, open **Brand Kit → Import from guidelines** and click **Try with our sample guideline PDF**.
+   Review the candidates (each with page and quote), select some and add them as a new Brand Kit version.
+6. **Change a fact.** In **Brand Kit → Approved facts**, edit a fact (for example the 4.6 rating). Drafts are re-checked
+   automatically; approved content that used the old figure gets a **provenance alert**.
+7. **Reset demo data** in the footer restores the samples in your workspace at any time.
+
+## Features
+
+| Area | What works |
 |---|---|
-| Brand Kit | Rules with IDs and good/bad examples, glossary, approved facts with source, owner and **expiry date**, brand colours; managers can add or delete items (versioned) |
-| Intake | Paste text or upload `.docx`; one-line intent: purpose, audience, call to action |
-| Rule checks (code) | Glossary variants and casing, hype, slang, pressure tactics, superlatives, guarantees, "click here", ALL-CAPS, sentence length, missing call to action |
-| Claim checks (code) | Every number is compared with approved facts: **supported** (shown as verified), **contradicted** (fix offered), **outdated** (expired fact, current figure offered) or **no source** |
-| Review Agent (AI) | With an API key, Claude plans further checks, calls Brand Kit tools (`search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite`) and proposes a full rewrite. Without a key the app runs in rules-only mode and stays fully usable |
-| Policy guard | AI findings must cite a rule returned by a tool and quote the text exactly; AI findings are advisory (at most *major*: only exact checks in code can raise a *critical*, approval-blocking issue); an automatic fix must be publishable text, not an instruction or a placeholder; a rewrite must keep the call to action and brand name and add no unapproved numbers, otherwise it is not shown |
-| **Claim provenance (improvement I1, delivered)** | When a manager adds, edits or removes a fact, every unapproved draft is **re-checked automatically** (new version by "system"); approved content that relied on a changed, expired or removed fact gets a **provenance alert** (never silently rewritten); the Facts tab shows **where each fact is used** |
-| Workflow | Creator / Reviewer / Manager roles; accept fix, accept suggested version, edit, dismiss with reason (critical: Manager only), submit, comment, request changes, approve (critical open: Manager sign-off only); approved content is locked |
-| Traceability | Every change is a new version with a word-level diff; every action is in the audit log; dismissals per rule are counted on the Insights page |
-| AI cost control | Claude Haiku 5.5 (medium effort), prompt caching, identical reviews reused for free, a spend meter from real token usage with a hard demo budget, an hourly cap and a length cap; the cost of each AI review is shown in the review screen |
+| Brand Kit | Rules with IDs, severity and good/bad examples; glossary; approved facts with source, owner and **expiry date**; brand palette. Managers add, edit and delete items; every change is a new, audited Kit version |
+| **Brand Kit import** (Round 3) | Upload a guideline **PDF or Word** file; the Review Agent proposes rules, terms and facts with the **page and exact quote**; code drops any candidate whose quote is not in the document, flags duplicates and missing end dates; a Manager edits and selects what to add |
+| Intake | Paste text, upload `.docx`, or upload an **image** (PNG/JPG/WebP) with caption and alt text; one-line intent (purpose, audience, call to action) |
+| Exact checks (code) | Glossary and brand-name spelling, hype, slang, pressure tactics, guarantees, superlatives, “click here”, ALL-CAPS, sentence length, missing call to action |
+| Claim checks (code) | Every number is compared with approved facts: **supported**, **contradicted**, **outdated** (expired fact) or **no source**; dates, times and phone numbers are ignored |
+| **Image checks** (Round 3) | Main colours vs the brand palette (CIELAB distance), alt text missing or generic (code); the AI reads each text block and its position, code measures **WCAG contrast** (4.5:1, 3:1 large) and runs the text through the rule and fact checks; AI-suggested alt text as a one-click fix |
+| Review Agent (AI) | Claude Haiku 5.5 with Brand Kit tools (`search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite`) checks tone, messaging and claims in context and writes a suggested version |
+| Policy guard | AI findings must cite a rule a tool returned and quote the text exactly; they are advisory (only code checks can raise a critical, approval-blocking issue); fixes must be publishable text; a rewrite must keep the call to action and brand name and add no unapproved number |
+| Workflow | Creator / Reviewer / Manager; accept fix, accept suggested version, edit, dismiss with reason (critical: Manager only), comment, request changes, approve (critical open: Manager sign-off only); approved content is locked |
+| Claim provenance (I1) | Drafts are re-checked automatically when a fact changes; approved content gets a provenance alert; the Facts tab shows where each fact is used |
+| **Guideline Clarity Score** (Round 3) | Score per rule from real accept/dismiss decisions; unclear rules flagged with most-dismissed phrases and reasons; AI drafts a clearer rule; code **replays past decisions** against the draft; Manager applies it as a new Kit version and the rule starts a fresh score |
+| Traceability | Versions with word-level compare (caption and alt text for images), full audit log, per-review AI cost |
+| Reliability | Private workspace per browser; clear messages for bad input, repeated actions and stale screens; buttons blocked while saving; AI timeouts and a watchdog so nothing hangs; rules-only mode when AI is unavailable |
+| AI cost control | Spend meter from real token usage, hard demo budget, hourly cap, prompt caching, reuse of identical reviews |
 
 ## How it works
 
 ```
-Content + intent ──► Rule checks in code ──► Review Agent (Claude + Brand Kit tools) ──► Policy guard ──► Findings + suggested version
-                      glossary, phrases,        search_rules · lookup_fact ·             cited IDs only,        │
-                      numbers vs facts          add_finding · submit_rewrite             intent check            ▼
-                                                                                          Creator: accept / edit / dismiss
-                                                                                          Reviewer / Manager: approve
+                     ┌──────────── Brand Kit (versioned) ◄── Import from guideline PDF/DOCX (agent proposes, code checks quotes, manager accepts)
+                     ▼                    ▲
+Content + intent ─► Exact checks ─► Review Agent ─► Policy guard ─► Findings + suggested fix ─► People decide ─► Audit log
+(text/.docx/image)  (code: rules,   (Claude Haiku    (cited IDs,      (rule or fact on every      (accept · edit ·    │
+                     facts, colours, 5.5 + tools;     exact quotes,     issue)                       dismiss · approve) ▼
+                     alt text)       vision for       AI ≤ major,                                             Guideline Clarity Score
+                                     image text)      intent kept)                                            (score → AI draft → replay → apply)
 ```
 
-- `app/engine.py`: deterministic tools (all checks, claim extraction and fact lookup, fixes, intent check).
-- `app/agent.py`: the Review Agent (manual tool-use loop on the Anthropic Messages API, `claude-haiku-5-5`, medium effort, prompt caching), the policy guard and the AI spend meter.
-- `app/store.py`: SQLite persistence, versions, decisions, role checks, approvals, audit log.
-- `app/main.py`: FastAPI JSON API (`/docs` has interactive API docs) and static hosting of the UI.
-- `app/static/`: the single-page UI (plain HTML, CSS and JavaScript, no build step).
-- `app/seed/codecraft.json`: the fictional demo Brand Kit and four sample posts.
+| Module | Responsibility |
+|---|---|
+| `app/engine.py` | Deterministic checks: patterns, glossary, claim extraction and fact lookup, readability, call to action, fixes, intent check |
+| `app/agent.py` | Review Agent tool loop, policy guard, spend meter, review cache, API error handling |
+| `app/images.py` | Image loading, palette and alt-text checks, AI text reading, WCAG contrast measurement |
+| `app/clarity.py` | Guideline Clarity Score, AI/code rule drafts, decision replay, applying drafts |
+| `app/importer.py` | PDF/DOCX text extraction, AI/code candidate extraction, quote grounding, duplicates, applying imports |
+| `app/store.py` | SQLite persistence, per-browser workspaces, versions, decisions, roles, approvals, audit, demo seed |
+| `app/main.py` | FastAPI JSON API (`/docs`), validation messages, workspace middleware, static UI |
+| `app/static/` | Single-page UI in plain HTML, CSS and JavaScript (no build step) |
+| `app/seed/` | Fictional Brand Kit, sample posts, demo poster and example review history |
+| `eval/` | Hand-labelled evaluation set and precision/recall report |
 
-### Why the AI costs almost nothing
+### AI and cost
 
-Exact checks (glossary, phrases, every number against approved facts) run in code for free. Claude is used only for judgment,
-on **Claude Haiku 5.5** (medium effort), with a short tool loop (at most 6 turns, 8 tool calls and 3 rewrite attempts) and
-prompt caching. A review of an identical text against the same Brand Kit is reused instead of paid for twice. A spend meter
-adds up the real token usage of every response; when the demo budget (`BRANDGUARD_AI_BUDGET_USD`) or the hourly cap is reached,
-BrandGuard switches to rules-only mode and says so, and the workflow keeps working. A typical review costs well under one cent.
+Claude is used only for judgment: tone and messaging in context, reading text in images, drafting clearer rules and reading
+guideline documents. Exact checks, contrast maths, quote grounding and decision replay are code. The model is
+`claude-haiku-5-5` (fast and inexpensive), with strict tool schemas, prompt caching and short loops. A typical review costs about
+$0.001–0.002. A spend meter prices the real token usage of every response and switches to rules-only mode at the budget
+(`BRANDGUARD_AI_BUDGET_USD`, default $1.00) or the hourly cap (`BRANDGUARD_AI_MAX_PER_HOUR`, default 30); the screen says so and
+the rest of the product keeps working.
 
-## Technology
+## Testing
 
-Python 3.11, FastAPI, Uvicorn, SQLite (standard library), python-docx, Anthropic Python SDK; plain HTML/CSS/JS frontend;
-pytest; GitHub Actions CI; deployed on Render.
+- **36 automated tests** (`pytest`) run in GitHub Actions on every push: the engine, the full workflow through the HTTP API,
+  workspace isolation, repeated actions and bad input, the Review Agent loop against a simulated model (policy guard, invented
+  numbers, API failure, budget and hourly caps, caching), image checks (real image, simulated vision response, contrast
+  measurement, alt-text fix), the Guideline Clarity Score (scoring, code and simulated-AI drafts, replay, apply, fresh score), and
+  Brand Kit import (PDF parsing, code extraction, quote grounding against invented quotes, duplicates, apply).
+- **Labelled evaluation set:** 50 hand-labelled cases in [`eval/cases.json`](eval/cases.json); `python -m eval.run_eval` prints
+  precision and recall per check ([`eval/results.md`](eval/results.md)). The first run found 3 false alarms (a clock time and a phone
+  number read as claims) and 1 labelling error; after the fix: 100% precision, 100% recall, 8/8 claims verified. A test keeps both
+  at 95% or more in CI. The set was written by the team and is small, so it guards against regressions rather than proving
+  real-world accuracy.
+- **Live end-to-end checks** of every journey on the deployed link, as Creator, Reviewer and Manager, including refresh, repeated
+  clicks, wrong file types, a missing page and the AI being unavailable.
 
-## Changes from the Round 1 plan
+## Run it yourself
 
-| Plan | Built | Why |
-|---|---|---|
-| React (Vite) + Tailwind frontend | One FastAPI app serving a plain HTML/CSS/JS page | One service to deploy and nothing to build: faster to ship and more reliable for judges in the 72-hour window |
-| Login with three roles | Role switch at the top right, every action role-checked and audited | Judges must use the product without signing in |
-| Agent tools `check_glossary`, `extract_claims`, `propose_fix`, `verify_intent` called by the LLM | These run in code before the agent; the agent calls `search_rules`, `lookup_fact`, `add_finding`, `submit_rewrite` | Exact checks are cheaper and fully reliable in code; the AI is used only for judgment |
-| Claim provenance (I1) in Round 2 | Delivered as planned: claim labels, automatic re-check on Brand Kit changes, provenance alerts, fact usage | No change |
-| Seeded evaluation set in CI | 26 automated tests in CI, including the Review Agent loop run against a simulated model (policy guard, invented numbers, API failure) | Same purpose without spending API credits on every commit; precision/recall reporting moves to Round 3 |
-
-## Three improvements for Round 3
-
-1. **Guideline Clarity Score (I2 from the plan):** turn the accept/dismiss data already being collected into a score per rule, group the dismissal reasons, and let the Review Agent draft a clearer version of a confusing rule for the brand manager to approve, so the guideline is fixed, not just the content.
-2. **Visual identity and accessibility checks for images (I3 from the plan):** upload a poster or social image; check its colours against the brand palette, text contrast against WCAG 4.5:1, and missing or weak alt text (with a suggested alt text), reported as the same cited, explained findings with accept/dismiss.
-3. **Brand Kit import from existing guidelines:** upload an existing brand guideline PDF or Word document; the agent extracts candidate rules, glossary terms and facts with the page they came from, and a manager confirms each one before it enters the Brand Kit. This removes the biggest setup cost for a real organisation.
-
-## Run locally
+Requirements: Python 3.11 and Git.
 
 ```sh
+git clone https://github.com/kartikmarwari700/brandguard.git
+cd brandguard
 python -m venv .venv
-.venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
+.venv\Scripts\activate             # Windows   (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
-uvicorn app.main:app --reload      # http://127.0.0.1:8000
-python -m pytest -q                # 26 tests, no API key needed
+uvicorn app.main:app --reload       # open http://127.0.0.1:8000
 ```
 
-AI review is optional: set `BRANDGUARD_ANTHROPIC_API_KEY` to enable the Claude Review Agent. The key is read only from this
-variable and is never sent anywhere except the Anthropic API. Optional limits: `BRANDGUARD_AI_BUDGET_USD` (default `1.00`),
-`BRANDGUARD_AI_MAX_PER_HOUR` (default `30`) and `BRANDGUARD_MODEL` (default `claude-haiku-5-5`).
+```sh
+python -m pytest -q                 # 36 tests, no API key needed
+python -m eval.run_eval             # precision/recall on the labelled set
+```
+
+Everything works without an API key (rules-only mode). To enable the AI Review Agent, set the key before starting the server:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BRANDGUARD_ANTHROPIC_API_KEY` | (none) | Anthropic API key; read only from this variable and sent only to the Anthropic API |
+| `BRANDGUARD_MODEL` | `claude-haiku-5-5` | Model for all AI features |
+| `BRANDGUARD_AI_BUDGET_USD` | `1.00` | AI spend per server process before switching to rules-only mode |
+| `BRANDGUARD_AI_MAX_PER_HOUR` | `30` | New AI reviews per hour |
+| `BRANDGUARD_DB` | `brandguard.db` | SQLite file (demo data; rebuilt from the seed if the schema changes) |
+
+**Deploy:** the repository includes a Render Blueprint (`render.yaml`): New → Blueprint → this repository, then paste the API key
+into `BRANDGUARD_ANTHROPIC_API_KEY`. A GitHub Action (`keep-awake.yml`) pings the app every 10 minutes when the repository
+variable `APP_URL` is set.
+
+## Known limitations
+
+- Roles are a demo switch, not accounts; the role rules and audit log are enforced, but there is no authentication.
+- Free hosting: the first visit after idling can be slow, and data resets to the samples when the server restarts.
+- Text-in-image reading and contrast need the AI; without it, colours and alt text are still checked in code.
+- Scanned (image-only) PDFs cannot be imported; facts are imported only with the AI.
+- English content only. The evaluation set is small and written by the team.
+
+## Roadmap
+
+1. **Pilot with real teams (next 3 months):** accounts and SSO with the same three roles, a persistent PostgreSQL database,
+   per-organisation Brand Kits, and user studies to measure review time and repeat issues.
+2. **Where content is written:** Google Docs and Figma plugins, a browser extension for social media composers, and a
+   publishing gate API for CMS tools.
+3. **Indian languages:** Hindi and Hinglish tone checks and glossaries.
+4. **More formats:** PDF and slide decks, video through transcripts and key frames, logo misuse detection.
+5. **Private deployment:** a locally hosted model option for organisations whose content must never leave their servers.
+6. **Learning from approvals:** the Clarity Score suggests new rules from patterns in approved and rejected content.
 
 ## Privacy and responsible design
 
-- Only the content under review, its intent and the relevant Brand Kit items are sent to the AI service; nothing is used for training by BrandGuard.
-- The AI cannot approve or publish: those actions exist only for people. Critical issues need a Manager.
-- Every AI suggestion is labelled and every action is logged.
-- The demo uses a fictional brand; no personal data is required.
+- Only the content under review, its intent and the Brand Kit items returned by tools are sent to the AI service.
+- The AI cannot approve or publish; critical issues need a Manager; AI findings are labelled and cannot block approval alone.
+- Every AI suggestion is checked by code (citations, quotes, numbers, intent) and every action is logged.
+- The demo needs no personal data.
 
 ## Team and contributions
 
-- **Kartik Marwari** (team lead): Review Agent, rule and claim engine, backend, workflow, deployment.
-- **Priyani Rajvanshi**: demo Brand Kit and sample content, user testing, documentation and demo video.
+- **Kartik Marwari** (team lead): Review Agent, rule and claim engine, image checks, Clarity Score, import, backend, deployment.
+- **Priyani Rajvanshi**: demo Brand Kit and sample content, documentation, user testing.
 
 ## AI assistance and third-party disclosure
 
 Built with help from an AI coding assistant (Claude by Anthropic) for code generation, tests and documentation; the team reviewed,
 ran and tested the code. At runtime the optional Review Agent calls the Anthropic Messages API (model `claude-haiku-5-5`).
-Open-source libraries: FastAPI, Uvicorn, Pydantic, python-docx, Anthropic Python SDK, pytest. No external datasets or templates.
+Open-source libraries: FastAPI, Uvicorn, Pydantic, python-docx, pypdf, Pillow, Anthropic Python SDK, pytest. No external datasets;
+the demo brand, documents and images were created for this project.
