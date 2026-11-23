@@ -86,3 +86,5 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 16px; }
 .how li { margin: 6px 0; }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
+body.busy button, body.busy .card { pointer-events: none; }
+body.busy { cursor: progress; }

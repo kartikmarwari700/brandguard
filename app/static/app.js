@@ -19,11 +19,29 @@ const cap = (s) => (s || "").charAt(0).toUpperCase() + (s || "").slice(1);
 const when = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
 const STATUS_TEXT = { draft: "Draft", in_review: "In review", changes_requested: "Changes requested", approved: "Approved" };
 
+// Each browser has its own demo workspace, so visitors never see or undo each other's changes.
+const WS = (() => {
+  const make = () => "ws-" + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
+  try { let w = localStorage.getItem("bg-ws"); if (!w) { w = make(); localStorage.setItem("bg-ws", w); } return w; } catch { return make(); }
+})();
+let busy = 0;
 async function api(path, opts = {}) {
-  const res = await fetch(path, { ...opts, headers: { "X-Role": ROLE, ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Something went wrong. Please try again.");
-  return data;
+  const write = opts.method && opts.method !== "GET";
+  if (write) { busy++; document.body.classList.add("busy"); }  // blocks double clicks while a change is being saved
+  try {
+    let res;
+    try {
+      res = await fetch(path, { ...opts, headers: { "X-Role": ROLE, "X-Workspace": WS, ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) } });
+    } catch { throw new Error("Cannot reach the server. Check your connection; the free server may take up to a minute to wake up."); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 409) setTimeout(route, 0);  // stale screen: show the latest state
+      throw new Error(typeof data.detail === "string" ? data.detail : res.status >= 500 ? "The server had a problem. Please try again." : "Something went wrong. Please try again.");
+    }
+    return data;
+  } finally {
+    if (write && --busy === 0) document.body.classList.remove("busy");
+  }
 }
 const post = (path, body) => api(path, { method: "POST", body: body instanceof FormData ? body : JSON.stringify(body || {}) });
 
@@ -58,8 +76,8 @@ document.querySelectorAll("#roles button").forEach((b) => b.addEventListener("cl
 }));
 $("#reset").addEventListener("click", async (e) => {
   e.preventDefault();
-  if (!confirm("Reset all demo content to the original samples?")) return;
-  await post("/api/reset"); toast("Demo data reset."); location.hash = "#/"; route();
+  if (!confirm("Reset your demo workspace to the original samples? Your changes in this browser will be removed.")) return;
+  try { await post("/api/reset"); KIT = null; toast("Your demo workspace was reset to the samples."); location.hash = "#/"; route(); } catch (err) { toast(err.message, true); }
 });
 
 async function loadStatus() {

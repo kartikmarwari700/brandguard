@@ -1,10 +1,13 @@
 """BrandGuard web app: JSON API under /api and the single-page UI under /."""
 import io
 import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -19,6 +22,45 @@ store.connect(os.environ.get("BRANDGUARD_DB", "brandguard.db"))
 @app.exception_handler(store.WorkflowError)
 def workflow_error(_: Request, exc: store.WorkflowError):
     return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+
+
+FIELD_NAMES = {"content": "Content", "title": "Title", "text": "Text", "reason": "Reason", "statement": "Statement",
+               "value": "Value", "unit": "Unit", "source": "Source", "valid_until": "Valid until", "preferred": "Preferred term"}
+
+
+@app.exception_handler(RequestValidationError)
+def validation_error(_: Request, exc: RequestValidationError):
+    """Plain-language validation messages instead of raw JSON."""
+    msgs = []
+    for e in exc.errors():
+        field = next((str(x) for x in reversed(e.get("loc", [])) if isinstance(x, str) and x != "body"), "input")
+        name = FIELD_NAMES.get(field, field.replace("_", " ").capitalize())
+        if e.get("type") == "string_too_long":
+            msgs.append(f"{name} is too long (max {e.get('ctx', {}).get('max_length')} characters).")
+        elif e.get("type") == "missing":
+            msgs.append(f"{name} is required.")
+        elif "pattern" in e.get("type", ""):
+            msgs.append(f"{name} has the wrong format" + (" (use YYYY-MM-DD)." if field == "valid_until" else "."))
+        else:
+            msgs.append(f"{name}: {e.get('msg', 'invalid value')}.")
+    return JSONResponse({"detail": " ".join(dict.fromkeys(msgs)) or "Invalid input."}, status_code=422)
+
+
+WS_PATTERN = re.compile(r"[A-Za-z0-9_-]{8,64}")
+
+
+@app.middleware("http")
+async def workspace(request: Request, call_next):
+    """Each browser sends its own workspace id; the API docs and other clients share the 'public' workspace."""
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    raw = request.headers.get("x-workspace", "")
+    token = store.use_workspace(raw if WS_PATTERN.fullmatch(raw) else "public")
+    try:
+        await run_in_threadpool(store.ensure_workspace)
+        return await call_next(request)
+    finally:
+        store.reset_workspace(token)
 
 
 def role_of(x_role: Optional[str]):

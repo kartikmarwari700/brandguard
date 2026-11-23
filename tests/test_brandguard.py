@@ -397,3 +397,47 @@ def test_agent_polish_feedback_does_not_block_a_safe_rewrite(monkeypatch):
     # the agent is told to polish its own unaddressed finding, but the safe rewrite is still shown
     assert feedback["ok"] is False and any("amazing" in p for p in feedback["problems"])
     assert result["rewrite_check"]["ok"] and result["rewrite"].endswith("today.")
+
+
+# ---------------------------------------------------------------- workspaces and robustness
+
+def W(ws, role="creator"):
+    return {"X-Workspace": ws, "X-Role": role}
+
+
+def test_each_browser_gets_its_own_workspace(client):
+    a, b = "visitor-aaaa-1111", "visitor-bbbb-2222"
+    sid = client.get("/api/submissions", headers=W(a)).json()[0]["id"]
+    client.post(f"/api/submissions/{sid}/submit", headers=W(a))
+    assert client.get(f"/api/submissions/{sid}", headers=W(a)).json()["status"] == "in_review"
+    # another visitor cannot see or change it, and has its own untouched samples
+    assert client.get(f"/api/submissions/{sid}", headers=W(b)).status_code == 404
+    assert client.post(f"/api/submissions/{sid}/submit", headers=W(b)).status_code == 404
+    assert {s["status"] for s in client.get("/api/submissions", headers=W(b)).json()} == {"draft"}
+    # a Brand Kit change and a reset stay inside one workspace
+    client.post("/api/kit/facts", headers=W(b, "manager"), json={"statement": "x", "value": 5, "unit": "x", "source": "s",
+                                                                    "valid_until": "2030-01-01"})
+    assert client.get("/api/kit", headers=W(b)).json()["version"] == 2
+    assert client.get("/api/kit", headers=W(a)).json()["version"] == 1
+    client.post("/api/reset", headers=W(b))
+    assert client.get(f"/api/submissions/{sid}", headers=W(a)).json()["status"] == "in_review"
+
+
+def test_repeated_actions_and_bad_input_get_clear_messages(client):
+    h = W("visitor-cccc-3333")
+    sub = client.get("/api/submissions", headers=h).json()
+    sid = next(s["id"] for s in sub if s["title"].startswith("Email"))
+    detail = client.get(f"/api/submissions/{sid}", headers=h).json()
+    minor = next(f for f in detail["current"]["findings"] if f["severity"] != "critical")
+    body = {"finding_id": minor["id"], "reason": "Fine for this audience"}
+    assert client.post(f"/api/submissions/{sid}/dismiss", headers=h, json=body).status_code == 200
+    again = client.post(f"/api/submissions/{sid}/dismiss", headers=h, json=body)
+    assert again.status_code == 409 and "already dismissed" in again.json()["detail"]
+    assert client.post(f"/api/submissions/{sid}/submit", headers=h).status_code == 200
+    twice = client.post(f"/api/submissions/{sid}/submit", headers=h)
+    assert twice.status_code == 409 and "Already sent" in twice.json()["detail"]
+    too_long = client.post("/api/submissions", headers=h, json={"title": "x", "content": "a" * 9000})
+    assert too_long.status_code == 422 and too_long.json()["detail"] == "Content is too long (max 8000 characters)."
+    empty = client.post("/api/submissions", headers=h, json={"title": "x", "content": "   "})
+    assert empty.status_code == 400 and "empty" in empty.json()["detail"]
+    assert client.get("/api/submissions/999999", headers=h).status_code == 404

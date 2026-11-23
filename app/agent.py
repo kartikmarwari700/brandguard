@@ -111,6 +111,17 @@ def ai_available():
     return bool(os.environ.get(API_KEY_VAR))
 
 
+def make_client():
+    """Dedicated key and endpoint only; a short timeout so a stalled network call can never hang a review."""
+    import anthropic
+
+    return anthropic.Anthropic(api_key=os.environ[API_KEY_VAR], base_url="https://api.anthropic.com",
+                               timeout=45.0, max_retries=1)
+
+
+REVIEW_DEADLINE = 100  # seconds for one whole review; the UI shows a spinner meanwhile
+
+
 def cost_usd(model, usage):
     """Cost of one response from its usage block (input_tokens excludes cached tokens)."""
     price_in, price_out = PRICES.get(model, PRICES["claude-opus-5-5"])  # unknown model: assume the dearest
@@ -332,7 +343,7 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
 
     import anthropic
 
-    client = anthropic.Anthropic(api_key=os.environ[API_KEY_VAR], base_url="https://api.anthropic.com")
+    client = make_client()
     run = _Run(text, intent, kit, rule_findings)
     brief = {
         "content": text, "intent": intent, "brand": kit["brand"]["name"], "voice": kit["brand"]["voice"],
@@ -344,7 +355,11 @@ def review_with_ai(text, intent, kit, rule_findings, verified):
     system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
     calls, spent, note = 0, 0.0, None
     try:
+        started = time.time()
         for turn in range(MAX_TURNS):
+            if turn and time.time() - started > REVIEW_DEADLINE:
+                note = "The AI review hit its time limit; the remaining AI checks were skipped."
+                break
             if turn and budget.exhausted():
                 note = "The AI budget ran out during this review; the remaining AI checks were skipped."
                 break
