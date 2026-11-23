@@ -4,106 +4,580 @@
     "description": "A fictional online coding school used to demonstrate BrandGuard. All rules, facts and posts are made up for the demo.",
     "voice": "Confident, warm and clear. We sound like a helpful senior, never a salesperson.",
     "palette": [
-      {"name": "Craft Blue", "hex": "#2F5BEA"},
-      {"name": "Ink", "hex": "#1A1F2B"},
-      {"name": "Spark Orange", "hex": "#FF8A3D"},
-      {"name": "Paper", "hex": "#F7F8FC"}
+      {
+        "name": "Craft Blue",
+        "hex": "#2F5BEA"
+      },
+      {
+        "name": "Ink",
+        "hex": "#1A1F2B"
+      },
+      {
+        "name": "Spark Orange",
+        "hex": "#FF8A3D"
+      },
+      {
+        "name": "Paper",
+        "hex": "#F7F8FC"
+      }
     ]
   },
   "rules": [
-    {"id": "TONE-01", "category": "tone", "severity": "major",
-     "title": "Confident and warm, never boastful",
-     "text": "Write like a helpful senior. Avoid hype words such as 'insane', 'mind-blowing' or 'crazy'.",
-     "good": "Learn to build real projects with mentors who answer your questions.",
-     "bad": "This insane bootcamp will blow your mind!",
-     "patterns": ["insane", "mind-blowing", "mind blowing", "crazy", "epic", "killer"]},
-    {"id": "TONE-02", "category": "tone", "severity": "major",
-     "title": "No slang or text-speak in official posts",
-     "text": "Official posts use full words. No text-speak.",
-     "good": "You are going to love this.",
-     "bad": "u r gonna luv this",
-     "patterns": ["gonna", "wanna", "u r", "pls", "plz", "bro", "lit", "luv"]},
-    {"id": "TONE-03", "category": "tone", "severity": "major",
-     "title": "No pressure tactics or all-caps urgency",
-     "text": "Give real dates instead of pressure. No 'last chance', 'hurry' or rows of exclamation marks.",
-     "good": "Offer ends on 30 Nov.",
-     "bad": "LAST CHANCE!!! HURRY!!!",
-     "patterns": ["last chance", "hurry", "act now", "don't miss out", "only today"]},
-    {"id": "CLAIM-01", "category": "claims", "severity": "critical",
-     "title": "Every number must match an approved fact",
-     "text": "Numbers about students, ratings, discounts, partners or placements must match an approved fact that has not expired.",
-     "good": "38,000+ students have enrolled.",
-     "bad": "50,000 students have enrolled."},
-    {"id": "CLAIM-02", "category": "claims", "severity": "critical",
-     "title": "Superlatives need an approved source",
-     "text": "Words like '#1', 'best', 'biggest', 'leading' or 'top' need an approved fact that proves them. We have none, so we do not use them.",
-     "good": "Trusted by 38,000+ students.",
-     "bad": "India's #1 coding platform.",
-     "patterns": ["#1", "no. 1", "number one", "best", "biggest", "largest", "leading", "top-rated", "top rated", "world-class", "world class"]},
-    {"id": "CLAIM-03", "category": "claims", "severity": "critical",
-     "title": "No guarantees about outcomes",
-     "text": "Never promise jobs, salaries or results. We offer placement support, not guarantees.",
-     "good": "Includes placement support and mock interviews.",
-     "bad": "100% placement guaranteed!",
-     "patterns": ["guarantee", "guaranteed", "100% placement", "assured job", "job assured", "sure-shot", "sure shot"]},
-    {"id": "MSG-01", "category": "messaging", "severity": "major",
-     "title": "One clear call to action",
-     "text": "Every promotional post ends with exactly one clear call to action that matches the creator's intent.",
-     "good": "Sign up today at codecraft.example/winter.",
-     "bad": "(post with no next step)"},
-    {"id": "ACC-01", "category": "accessibility", "severity": "minor",
-     "title": "Plain language: keep sentences under 25 words",
-     "text": "Long sentences are hard to read, especially on phones and for non-native readers.",
-     "good": "Short sentences. One idea each.",
-     "bad": "A 40-word sentence that keeps going with many clauses and ideas."},
-    {"id": "ACC-02", "category": "accessibility", "severity": "minor",
-     "title": "Descriptive link text",
-     "text": "Do not write 'click here'. Say where the link goes.",
-     "good": "See the full schedule on our website.",
-     "bad": "Click here for details.",
-     "patterns": ["click here", "click this link"]},
-    {"id": "ACC-03", "category": "accessibility", "severity": "minor",
-     "title": "Avoid ALL-CAPS words",
-     "text": "All-caps words are read letter by letter by some screen readers and feel like shouting.",
-     "good": "Free webinar on Friday.",
-     "bad": "FREE WEBINAR ON FRIDAY."}
+    {
+      "id": "TONE-01",
+      "category": "tone",
+      "severity": "major",
+      "title": "Confident and warm, never boastful",
+      "text": "Write like a helpful senior. Avoid hype words such as 'insane', 'mind-blowing' or 'crazy'.",
+      "good": "Learn to build real projects with mentors who answer your questions.",
+      "bad": "This insane bootcamp will blow your mind!",
+      "patterns": [
+        "insane",
+        "mind-blowing",
+        "mind blowing",
+        "crazy",
+        "epic",
+        "killer"
+      ]
+    },
+    {
+      "id": "TONE-02",
+      "category": "tone",
+      "severity": "major",
+      "title": "No slang or text-speak in official posts",
+      "text": "Official posts use full words. No text-speak.",
+      "good": "You are going to love this.",
+      "bad": "u r gonna luv this",
+      "patterns": [
+        "gonna",
+        "wanna",
+        "u r",
+        "pls",
+        "plz",
+        "bro",
+        "lit",
+        "luv"
+      ]
+    },
+    {
+      "id": "TONE-03",
+      "category": "tone",
+      "severity": "major",
+      "title": "No pressure tactics or all-caps urgency",
+      "text": "Give real dates instead of pressure. No 'last chance', 'hurry' or rows of exclamation marks.",
+      "good": "Offer ends on 30 Nov.",
+      "bad": "LAST CHANCE!!! HURRY!!!",
+      "patterns": [
+        "last chance",
+        "hurry",
+        "act now",
+        "don't miss out",
+        "only today"
+      ]
+    },
+    {
+      "id": "TONE-04",
+      "category": "tone",
+      "severity": "minor",
+      "title": "Friendly but professional",
+      "text": "Be friendly but professional. Avoid casual words.",
+      "good": "Join our weekend workshop and build your first website with a mentor.",
+      "bad": "Hey guys, our workshop is super cool!",
+      "patterns": [
+        "hey",
+        "guys",
+        "folks",
+        "super",
+        "cool",
+        "awesome"
+      ]
+    },
+    {
+      "id": "CLAIM-01",
+      "category": "claims",
+      "severity": "critical",
+      "title": "Every number must match an approved fact",
+      "text": "Numbers about students, ratings, discounts, partners or placements must match an approved fact that has not expired.",
+      "good": "38,000+ students have enrolled.",
+      "bad": "50,000 students have enrolled."
+    },
+    {
+      "id": "CLAIM-02",
+      "category": "claims",
+      "severity": "critical",
+      "title": "Superlatives need an approved source",
+      "text": "Words like '#1', 'best', 'biggest', 'leading' or 'top' need an approved fact that proves them. We have none, so we do not use them.",
+      "good": "Trusted by 38,000+ students.",
+      "bad": "India's #1 coding platform.",
+      "patterns": [
+        "#1",
+        "no. 1",
+        "number one",
+        "best",
+        "biggest",
+        "largest",
+        "leading",
+        "top-rated",
+        "top rated",
+        "world-class",
+        "world class"
+      ]
+    },
+    {
+      "id": "CLAIM-03",
+      "category": "claims",
+      "severity": "critical",
+      "title": "No guarantees about outcomes",
+      "text": "Never promise jobs, salaries or results. We offer placement support, not guarantees.",
+      "good": "Includes placement support and mock interviews.",
+      "bad": "100% placement guaranteed!",
+      "patterns": [
+        "guarantee",
+        "guaranteed",
+        "100% placement",
+        "assured job",
+        "job assured",
+        "sure-shot",
+        "sure shot"
+      ]
+    },
+    {
+      "id": "MSG-01",
+      "category": "messaging",
+      "severity": "major",
+      "title": "One clear call to action",
+      "text": "Every promotional post ends with exactly one clear call to action that matches the creator's intent.",
+      "good": "Sign up today at codecraft.example/winter.",
+      "bad": "(post with no next step)"
+    },
+    {
+      "id": "ACC-01",
+      "category": "accessibility",
+      "severity": "minor",
+      "title": "Plain language: keep sentences under 25 words",
+      "text": "Long sentences are hard to read, especially on phones and for non-native readers.",
+      "good": "Short sentences. One idea each.",
+      "bad": "A 40-word sentence that keeps going with many clauses and ideas."
+    },
+    {
+      "id": "ACC-02",
+      "category": "accessibility",
+      "severity": "minor",
+      "title": "Descriptive link text",
+      "text": "Do not write 'click here'. Say where the link goes.",
+      "good": "See the full schedule on our website.",
+      "bad": "Click here for details.",
+      "patterns": [
+        "click here",
+        "click this link"
+      ]
+    },
+    {
+      "id": "ACC-03",
+      "category": "accessibility",
+      "severity": "minor",
+      "title": "Avoid ALL-CAPS words",
+      "text": "All-caps words are read letter by letter by some screen readers and feel like shouting.",
+      "good": "Free webinar on Friday.",
+      "bad": "FREE WEBINAR ON FRIDAY."
+    }
   ],
   "glossary": [
-    {"id": "TERM-01", "preferred": "CodeCraft Academy", "variants": ["Codecraft Academy", "Code Craft Academy", "CODECRAFT ACADEMY", "Codecraft academy", "Code craft"], "note": "Brand name: one word, capital C twice."},
-    {"id": "TERM-02", "preferred": "Winter Bootcamp", "variants": ["winter boot camp", "Winter Boot Camp", "winter-bootcamp"], "note": "Programme name is two words, 'Bootcamp' is one word."},
-    {"id": "TERM-03", "preferred": "sign up", "variants": ["signup", "sign-up"], "note": "Use 'sign up' (verb) in calls to action."},
-    {"id": "TERM-04", "preferred": "email", "variants": ["e-mail", "E-mail", "eMail"], "note": "One word, no hyphen."},
-    {"id": "TERM-05", "preferred": "mentors", "variants": ["teachers", "tutors"], "note": "Our instructors are called mentors."},
-    {"id": "TERM-06", "preferred": "learners", "variants": ["customers"], "note": "We never call learners customers."}
+    {
+      "id": "TERM-01",
+      "preferred": "CodeCraft Academy",
+      "variants": [
+        "Codecraft Academy",
+        "Code Craft Academy",
+        "CODECRAFT ACADEMY",
+        "Codecraft academy",
+        "Code craft"
+      ],
+      "note": "Brand name: one word, capital C twice."
+    },
+    {
+      "id": "TERM-02",
+      "preferred": "Winter Bootcamp",
+      "variants": [
+        "winter boot camp",
+        "Winter Boot Camp",
+        "winter-bootcamp"
+      ],
+      "note": "Programme name is two words, 'Bootcamp' is one word."
+    },
+    {
+      "id": "TERM-03",
+      "preferred": "sign up",
+      "variants": [
+        "signup",
+        "sign-up"
+      ],
+      "note": "Use 'sign up' (verb) in calls to action."
+    },
+    {
+      "id": "TERM-04",
+      "preferred": "email",
+      "variants": [
+        "e-mail",
+        "E-mail",
+        "eMail"
+      ],
+      "note": "One word, no hyphen."
+    },
+    {
+      "id": "TERM-05",
+      "preferred": "mentors",
+      "variants": [
+        "teachers",
+        "tutors"
+      ],
+      "note": "Our instructors are called mentors."
+    },
+    {
+      "id": "TERM-06",
+      "preferred": "learners",
+      "variants": [
+        "customers"
+      ],
+      "note": "We never call learners customers."
+    }
   ],
   "facts": [
-    {"id": "FACT-01", "statement": "38,000 students have enrolled in CodeCraft Academy courses.", "value": 38000, "unit": "students",
-     "keywords": ["students", "learners", "enrolled", "enrolments"], "source": "Q3 2026 enrolment report", "owner": "Growth team", "valid_until": "2026-12-31"},
-    {"id": "FACT-02", "statement": "The Winter Bootcamp discount is 70% until 30 Nov 2026.", "value": 70, "unit": "%",
-     "keywords": ["off", "discount", "winter", "bootcamp"], "source": "Pricing sheet v4", "owner": "Marketing", "valid_until": "2026-11-30"},
-    {"id": "FACT-03", "statement": "Learners rate CodeCraft Academy 4.6 out of 5.", "value": 4.6, "unit": "rating",
-     "keywords": ["rating", "rated", "stars", "/5", "out of 5"], "source": "Course feedback survey, Oct 2026", "owner": "Learning team", "valid_until": "2027-03-31"},
-    {"id": "FACT-04", "statement": "CodeCraft Academy has 120 hiring partners.", "value": 120, "unit": "partners",
-     "keywords": ["hiring partners", "partners", "companies", "recruiters"], "source": "Partnerships tracker", "owner": "Careers team", "valid_until": "2026-12-31"},
-    {"id": "FACT-05", "statement": "The Winter Bootcamp runs for 8 weeks.", "value": 8, "unit": "weeks",
-     "keywords": ["weeks", "week"], "source": "Programme handbook", "owner": "Learning team", "valid_until": "2027-06-30"},
-    {"id": "FACT-06", "statement": "CodeCraft Academy had 95 hiring partners (old figure).", "value": 95, "unit": "partners",
-     "keywords": ["hiring partners", "partners"], "source": "Partnerships tracker, Q1 2026", "owner": "Careers team", "valid_until": "2026-06-30"},
-    {"id": "FACT-07", "statement": "Over 300 hours of mentor support were given last month.", "value": 300, "unit": "hours",
-     "keywords": ["hours", "mentor support"], "source": "Mentor dashboard, Oct 2026", "owner": "Learning team", "valid_until": "2026-12-31"}
+    {
+      "id": "FACT-01",
+      "statement": "38,000 students have enrolled in CodeCraft Academy courses.",
+      "value": 38000,
+      "unit": "students",
+      "keywords": [
+        "students",
+        "learners",
+        "enrolled",
+        "enrolments"
+      ],
+      "source": "Q3 2026 enrolment report",
+      "owner": "Growth team",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "id": "FACT-02",
+      "statement": "The Winter Bootcamp discount is 70% until 30 Nov 2026.",
+      "value": 70,
+      "unit": "%",
+      "keywords": [
+        "off",
+        "discount",
+        "winter",
+        "bootcamp"
+      ],
+      "source": "Pricing sheet v4",
+      "owner": "Marketing",
+      "valid_until": "2026-11-30"
+    },
+    {
+      "id": "FACT-03",
+      "statement": "Learners rate CodeCraft Academy 4.6 out of 5.",
+      "value": 4.6,
+      "unit": "rating",
+      "keywords": [
+        "rating",
+        "rated",
+        "stars",
+        "/5",
+        "out of 5"
+      ],
+      "source": "Course feedback survey, Oct 2026",
+      "owner": "Learning team",
+      "valid_until": "2027-03-31"
+    },
+    {
+      "id": "FACT-04",
+      "statement": "CodeCraft Academy has 120 hiring partners.",
+      "value": 120,
+      "unit": "partners",
+      "keywords": [
+        "hiring partners",
+        "partners",
+        "companies",
+        "recruiters"
+      ],
+      "source": "Partnerships tracker",
+      "owner": "Careers team",
+      "valid_until": "2026-12-31"
+    },
+    {
+      "id": "FACT-05",
+      "statement": "The Winter Bootcamp runs for 8 weeks.",
+      "value": 8,
+      "unit": "weeks",
+      "keywords": [
+        "weeks",
+        "week"
+      ],
+      "source": "Programme handbook",
+      "owner": "Learning team",
+      "valid_until": "2027-06-30"
+    },
+    {
+      "id": "FACT-06",
+      "statement": "CodeCraft Academy had 95 hiring partners (old figure).",
+      "value": 95,
+      "unit": "partners",
+      "keywords": [
+        "hiring partners",
+        "partners"
+      ],
+      "source": "Partnerships tracker, Q1 2026",
+      "owner": "Careers team",
+      "valid_until": "2026-06-30"
+    },
+    {
+      "id": "FACT-07",
+      "statement": "Over 300 hours of mentor support were given last month.",
+      "value": 300,
+      "unit": "hours",
+      "keywords": [
+        "hours",
+        "mentor support"
+      ],
+      "source": "Mentor dashboard, Oct 2026",
+      "owner": "Learning team",
+      "valid_until": "2026-12-31"
+    }
   ],
   "samples": [
-    {"title": "Instagram: Winter Bootcamp launch", "channel": "Instagram post",
-     "intent": {"purpose": "Promote the Winter Bootcamp", "audience": "College students", "cta": "sign up"},
-     "content": "Join India's #1 coding platform! Over 50,000 students already learn with Codecraft Academy. Get 70% off the winter boot camp. LAST CHANCE!!! Signup today."},
-    {"title": "Email: placement programme", "channel": "Email",
-     "intent": {"purpose": "Invite learners to the placement programme", "audience": "Final-year learners", "cta": "register"},
-     "content": "Hi there, our placement programme is gonna change your life. We guarantee 100% placement with our 150 hiring partners, so u r basically hired already. Click here to register before seats run out!"},
-    {"title": "Ad: weekend workshop", "channel": "Advertisement",
-     "intent": {"purpose": "Fill seats in the weekend web development workshop", "audience": "Beginners", "cta": "book a seat"},
-     "content": "Our mentors will help you build your first website in one weekend. Learners rate us 4.6 out of 5. Book a seat on our website."},
-    {"title": "LinkedIn: partner update", "channel": "LinkedIn post",
-     "intent": {"purpose": "Share our hiring partner network", "audience": "Recruiters and learners", "cta": "apply"},
-     "content": "We now work with 95 hiring partners across India, and our world-class tutors have given more than 300 hours of mentor support last month, which is a number that we are really proud of because it shows how much our team cares about every single one of our customers and their success. Apply now."}
+    {
+      "title": "Instagram: Winter Bootcamp launch",
+      "channel": "Instagram post",
+      "intent": {
+        "purpose": "Promote the Winter Bootcamp",
+        "audience": "College students",
+        "cta": "sign up"
+      },
+      "content": "Join India's #1 coding platform! Over 50,000 students already learn with Codecraft Academy. Get 70% off the winter boot camp. LAST CHANCE!!! Signup today."
+    },
+    {
+      "title": "Email: placement programme",
+      "channel": "Email",
+      "intent": {
+        "purpose": "Invite learners to the placement programme",
+        "audience": "Final-year learners",
+        "cta": "register"
+      },
+      "content": "Hi there, our placement programme is gonna change your life. We guarantee 100% placement with our 150 hiring partners, so u r basically hired already. Click here to register before seats run out!"
+    },
+    {
+      "title": "Ad: weekend workshop",
+      "channel": "Advertisement",
+      "intent": {
+        "purpose": "Fill seats in the weekend web development workshop",
+        "audience": "Beginners",
+        "cta": "book a seat"
+      },
+      "content": "Our mentors will help you build your first website in one weekend. Learners rate us 4.6 out of 5. Book a seat on our website."
+    },
+    {
+      "title": "LinkedIn: partner update",
+      "channel": "LinkedIn post",
+      "intent": {
+        "purpose": "Share our hiring partner network",
+        "audience": "Recruiters and learners",
+        "cta": "apply"
+      },
+      "content": "We now work with 95 hiring partners across India, and our world-class tutors have given more than 300 hours of mentor support last month, which is a number that we are really proud of because it shows how much our team cares about every single one of our customers and their success. Apply now."
+    },
+    {
+      "title": "WhatsApp: workshop reminder",
+      "channel": "WhatsApp message",
+      "content": "Hey folks! Our weekend workshop is back this Saturday. It's going to be super fun, and our mentors will help you build your first website. Book a seat on our website.",
+      "intent": {
+        "purpose": "Remind the community about the weekend workshop",
+        "audience": "Learners in our WhatsApp community",
+        "cta": "book a seat"
+      }
+    }
+  ],
+  "history": [
+    {
+      "rule_id": "TONE-04",
+      "quote": "Hey",
+      "action": "rejected",
+      "reason": "A friendly greeting is normal in our community chats",
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "super",
+      "action": "rejected",
+      "reason": "This is how our learners talk; it is not unprofessional",
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "awesome",
+      "action": "rejected",
+      "reason": "Casual but warm, which matches our voice",
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "folks",
+      "action": "rejected",
+      "reason": "Friendly greeting for the WhatsApp community",
+      "role": "reviewer"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "cool",
+      "action": "rejected",
+      "reason": "Fine for a student audience",
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "hey",
+      "action": "rejected",
+      "reason": "Informal channel; a greeting is expected",
+      "role": "reviewer"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "awesome",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-04",
+      "quote": "guys",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "ACC-01",
+      "quote": "By registering you agree to the programme terms, the refund policy and the code of conduct that applies to every session, including online sessions and the final project review.",
+      "action": "rejected",
+      "reason": "Legal wording that cannot be shortened",
+      "role": "manager"
+    },
+    {
+      "rule_id": "ACC-01",
+      "quote": "Our mentors review every project line by line, explain what to improve and why, and stay with you until your code works, your project is deployed and you can explain it yourself.",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "ACC-01",
+      "quote": "Seats are limited because each mentor works with small groups so that every learner gets enough time, feedback and support during the whole eight-week programme and after it ends.",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "ACC-01",
+      "quote": "The certificate lists the course title, the hours completed, the projects submitted and the mentor who reviewed them, and it can be verified online by any employer at any time.",
+      "action": "rejected",
+      "reason": "Certificate text is fixed by the certification team",
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-01",
+      "quote": "mind-blowing",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-01",
+      "quote": "insane",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-01",
+      "quote": "epic",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-01",
+      "quote": "crazy",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-01",
+      "quote": "Epic",
+      "action": "rejected",
+      "reason": "Epic Coders is the name of a partner programme",
+      "role": "reviewer"
+    },
+    {
+      "rule_id": "CLAIM-02",
+      "quote": "best",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "CLAIM-02",
+      "quote": "#1",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "CLAIM-02",
+      "quote": "leading",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-02",
+      "quote": "gonna",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-02",
+      "quote": "u r",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TONE-02",
+      "quote": "pls",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TERM-02",
+      "quote": "winter boot camp",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TERM-02",
+      "quote": "Winter bootcamp",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    },
+    {
+      "rule_id": "TERM-01",
+      "quote": "Codecraft",
+      "action": "accepted",
+      "reason": null,
+      "role": "creator"
+    }
   ]
 }

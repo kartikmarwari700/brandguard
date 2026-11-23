@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, store
+from . import agent, clarity, store
 
 app = FastAPI(title="BrandGuard API", version="1.0.0",
               description="Explainable brand governance before publishing. Team Cite or Flag, CodeZen India 2026.")
@@ -259,6 +259,42 @@ def audit_log():
 @app.get("/api/insights")
 def insights():
     return store.rule_insights()
+
+
+class RuleEdit(BaseModel):
+    title: Optional[str] = Field(None, max_length=120)
+    text: Optional[str] = Field(None, max_length=500)
+    good: Optional[str] = Field(None, max_length=200)
+    bad: Optional[str] = Field(None, max_length=200)
+    patterns: Optional[List[str]] = None
+
+
+@app.get("/api/clarity")
+def clarity_scores():
+    return {"scores": clarity.scores(), "proposals": clarity.list_proposals(),
+            "min_decisions": clarity.MIN_DECISIONS, "unclear_rate": clarity.UNCLEAR_DISMISS_RATE}
+
+
+@app.post("/api/clarity/{rule_id}/draft")
+def clarity_draft(rule_id: str, x_role: Optional[str] = Header(None)):
+    return clarity.draft_rule(rule_id, role_of(x_role))
+
+
+@app.get("/api/clarity/proposals/{pid}")
+def clarity_proposal(pid: int):
+    return clarity.get_proposal(pid)
+
+
+@app.post("/api/clarity/proposals/{pid}/apply")
+def clarity_apply(pid: int, body: RuleEdit, x_role: Optional[str] = Header(None)):
+    clarity.apply_proposal(pid, body.model_dump(), role_of(x_role))
+    return clarity.get_proposal(pid)
+
+
+@app.post("/api/clarity/proposals/{pid}/discard")
+def clarity_discard(pid: int, x_role: Optional[str] = Header(None)):
+    clarity.discard_proposal(pid, role_of(x_role))
+    return clarity.get_proposal(pid)
 
 
 @app.post("/api/reset")

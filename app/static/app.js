@@ -411,14 +411,81 @@ async function kitView() {
 }
 
 async function insightsView() {
-  await kit();
-  const rows = await api("/api/insights");
-  return el("div", {}, el("h1", {}, "Rule insights"),
-    el("p", { class: "muted" }, "How often each rule's findings are accepted or dismissed. Rules that people keep dismissing may be unclear: this is the data behind the Guideline Clarity Score (coming in Round 3)."),
-    el("div", { class: "panel" }, rows.length ? el("table", {}, el("tr", {}, el("th", {}, "Rule"), el("th", {}, "Accepted"), el("th", {}, "Dismissed"), el("th", {}, "Dismiss rate")),
-      rows.map((r) => el("tr", {}, el("td", {}, el("span", { class: "rid", title: ruleInfo(r.rule_id) }, r.rule_id), " ", r.title), el("td", {}, r.accepted), el("td", {}, r.rejected),
-        el("td", { class: r.dismiss_rate >= 0.5 ? "c-critical" : "" }, `${Math.round(r.dismiss_rate * 100)}%`, r.dismiss_rate >= 0.5 && r.rejected >= 2 ? " · possibly unclear" : ""))))
-      : el("div", { class: "empty" }, "No decisions yet. Accept or dismiss findings on a post and they will appear here.")));
+  await kit(true);
+  const data = await api("/api/clarity");
+  const STATUS_PILL = { unclear: ["Possibly unclear", "st-changes_requested"], clear: ["Clear", "st-approved"], needs_data: ["Needs more data", "st-draft"], clarified: ["Rewritten: building a new score", "st-in_review"] };
+  const card = (r) => {
+    const [label, cls] = STATUS_PILL[r.status];
+    const color = r.score === null ? "var(--muted)" : r.score < 60 ? "var(--bad)" : r.score < 80 ? "var(--major)" : "var(--good)";
+    return el("div", { class: "panel clarity" + (r.status === "unclear" ? " unclear" : "") },
+      el("div", { class: "row", style: "justify-content:space-between" },
+        el("div", {}, el("span", { class: "rid", title: ruleInfo(r.rule_id) }, r.rule_id), " ", el("b", {}, r.title)),
+        el("span", { class: `pill ${cls}` }, label)),
+      r.text ? el("div", { class: "small muted", style: "margin:4px 0 8px" }, "Rule: ", r.text) : null,
+      el("div", { class: "row" },
+        el("div", { class: "score", style: `color:${color}` }, r.score === null ? "–" : r.score),
+        el("div", { style: "flex:1;min-width:180px" },
+          el("div", { class: "bar" }, el("span", { style: `width:${r.score || 0}%;background:${color}` })),
+          el("div", { class: "small muted" }, `Clarity score: ${r.accepted} of ${r.decisions} findings accepted · ${r.dismissed} dismissed`,
+            r.clarified ? ` · rewritten ${when(r.clarified)} (${r.decisions_before_rewrite} earlier decisions kept in history)` : ""))),
+      r.themes.length || r.dismissed_phrases.length ? el("div", { class: "small", style: "margin-top:8px" },
+        r.dismissed_phrases.length ? el("div", {}, el("b", {}, "Most dismissed: "), r.dismissed_phrases.map((p) => el("span", { class: "chip" }, `“${p.phrase}” ×${p.count}`))) : null,
+        r.themes.length ? el("div", { style: "margin-top:4px" }, el("b", {}, "Words in dismissal reasons: "), r.themes.map((t) => el("span", { class: "chip" }, `${t.word} ×${t.count}`))) : null) : null,
+      r.examples.length ? el("details", {}, el("summary", {}, `Why people dismissed it (${r.examples.length} recent)`),
+        el("ul", { class: "small" }, r.examples.map((e) => el("li", {}, el("span", { class: "quote" }, e.quote), " — ", e.reason || "no reason")))) : null,
+      r.is_rule && r.status === "unclear" ? el("div", { class: "actions" },
+        ROLE === "manager"
+          ? el("button", { class: "primary", onclick: async () => {
+              try { const d = r.draft_id ? await api(`/api/clarity/proposals/${r.draft_id}`) : await post(`/api/clarity/${r.rule_id}/draft`); showDraft(d); } catch (e) { toast(e.message, true); }
+            } }, r.draft_id ? "Open the draft" : "Draft a clearer rule")
+          : el("span", { class: "small muted" }, "Switch to Manager (top right) to draft a clearer version of this rule.")) : null);
+  };
+  const flagged = data.scores.filter((r) => r.status === "unclear").length;
+  return el("div", {},
+    el("h1", {}, "Guideline Clarity Score"),
+    el("p", { class: "muted" }, "Which brand rules people keep overriding. The score is the share of a rule's findings that people accepted. ",
+      `A rule dismissed in ${Math.round(data.unclear_rate * 100)}% or more of at least ${data.min_decisions} decisions is flagged as possibly unclear. `,
+      "A Manager can have the Review Agent draft a clearer version; code replays the past decisions to show its effect before it enters the Brand Kit."),
+    el("div", { class: "intent" }, flagged ? `⚠ ${flagged} rule(s) look unclear. ` : "No rule looks unclear right now. ",
+      "Scores include example decisions from the demo seed (fictional review history) plus every accept and dismiss you make."),
+    data.scores.length ? el("div", { class: "clarity-list" }, data.scores.map(card)) : el("div", { class: "panel empty" }, "No decisions yet. Accept or dismiss findings on a post and the scores appear here."));
+}
+
+function showDraft(d) {
+  const b = d.before, a = d.after, ev = d.evidence, done = d.status !== "draft";
+  const f = { title: el("input", { value: a.title }), text: el("textarea", { rows: 3 }, a.text), good: el("input", { value: a.good || "" }),
+    bad: el("input", { value: a.bad || "" }), patterns: el("input", { value: (a.patterns || []).join(", ") }) };
+  if (done) Object.values(f).forEach((i) => i.setAttribute("disabled", ""));
+  const chips = [...new Set([...(b.patterns || []), ...(a.patterns || [])])].map((p) => {
+    const was = (b.patterns || []).includes(p), now = (a.patterns || []).includes(p);
+    return el("span", { class: "chip " + (was && !now ? "removed" : !was && now ? "added" : "") }, p);
+  });
+  modal(
+    el("h2", {}, `Clearer version of ${d.rule_id}`, " ", el("span", { class: "ai-tag" }, d.source === "ai" ? "Drafted by the Review Agent" : "Drafted in code")),
+    d.note ? el("p", { class: "small muted" }, d.note) : null,
+    el("h3", {}, "Rule text: before → after"), diffWords(b.text || "", a.text || ""),
+    el("h3", {}, "Phrases it flags"), (b.patterns || []).length || (a.patterns || []).length ? el("div", {}, chips, el("div", { class: "small muted" }, "Red = removed, green = added.")) : el("div", { class: "small muted" }, "This rule has no phrase list."),
+    el("h3", {}, "Evidence from past decisions (checked in code)"),
+    ev.replayed ? el("div", { class: "verified" },
+      `✔ ${ev.dismissed_no_longer_flagged} of ${ev.dismissed_total} dismissed cases would no longer be flagged. `,
+      `${ev.accepted_still_caught} of ${ev.accepted_total} accepted cases are still caught.`,
+      ev.accepted_lost.length ? el("div", { style: "color:var(--major)" }, "⚠ No longer caught: ", ev.accepted_lost.map((q) => `“${q}”`).join(", ")) : null)
+      : el("div", { class: "small muted" }, ev.note),
+    d.after.rationale ? el("p", { class: "small" }, el("b", {}, "Why: "), d.after.rationale) : null,
+    el("h3", {}, done ? `This draft was ${d.status}.` : "Edit before applying (optional)"),
+    el("label", {}, "Title"), f.title, el("label", {}, "Rule text"), f.text,
+    el("div", { class: "grid2" }, el("div", {}, el("label", {}, "Good example"), f.good), el("div", {}, el("label", {}, "Bad example"), f.bad)),
+    el("label", {}, "Phrases (comma separated)"), f.patterns,
+    el("div", { class: "actions" },
+      done ? null : el("button", { class: "good", onclick: async () => {
+        try {
+          await post(`/api/clarity/proposals/${d.id}/apply`, { title: f.title.value, text: f.text.value, good: f.good.value, bad: f.bad.value,
+            patterns: f.patterns.value.split(",").map((x) => x.trim()).filter(Boolean) });
+          closeModal(); KIT = null; toast("Rule updated: new Brand Kit version. Open drafts were re-checked."); route();
+        } catch (e) { toast(e.message, true); }
+      } }, "Apply to Brand Kit"),
+      done ? null : el("button", { class: "danger", onclick: async () => { try { await post(`/api/clarity/proposals/${d.id}/discard`); closeModal(); toast("Draft discarded."); route(); } catch (e) { toast(e.message, true); } } }, "Discard draft"),
+      el("button", { onclick: closeModal }, "Close")));
 }
 
 async function activityView() {

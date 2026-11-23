@@ -88,3 +88,11 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 .empty { text-align: center; color: var(--muted); padding: 30px; }
 body.busy button, body.busy .card { pointer-events: none; }
 body.busy { cursor: progress; }
+.clarity-list { display: grid; gap: 12px; }
+.panel.clarity.unclear { border-left: 4px solid var(--major); }
+.score { font-size: 28px; font-weight: 800; width: 56px; text-align: center; }
+.bar { height: 8px; background: var(--soft); border-radius: 99px; overflow: hidden; margin-bottom: 4px; }
+.bar span { display: block; height: 100%; border-radius: 99px; }
+.chip { display: inline-block; font-size: 12px; background: var(--soft); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; margin: 2px 4px 2px 0; }
+.chip.removed { background: var(--bad-soft); color: var(--bad); text-decoration: line-through; border-color: #f3c1c1; }
+.chip.added { background: var(--good-soft); color: var(--good); border-color: #bfe3cc; }
