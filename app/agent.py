@@ -42,7 +42,7 @@ CACHE_SIZE = 256
 
 # USD per million tokens (input, output) for prompts under 100K tokens. Cache reads are billed at 0.1x input
 # (0.05x on the 5.5 Sonnet/Opus models, so 0.1x over-estimates there) and 5-minute cache writes at 1.25x input.
-PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
+PRICES = {"route-llm": (0.50, 3.00), "claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
 
 SYSTEM_PROMPT = """You are BrandGuard's Review Agent. You review a piece of marketing content before it is published,
 against the organisation's Brand Kit. Code has already run exact checks (glossary, banned phrases, numbers vs approved
@@ -107,12 +107,31 @@ _REMOVE = re.compile(r"^(remove|delete|drop|cut)\b[^.]*\.?$", re.I)
 _INSTRUCTION = re.compile(r"^(replace|rewrite|rephrase|add|change|consider|mention|specify|include)\b", re.I)
 
 
+ABACUS_KEY_VAR = "BRANDGUARD_ABACUS_API_KEY"  # optional alternative provider (Abacus.AI RouteLLM)
+ABACUS_MODEL = os.environ.get("BRANDGUARD_ABACUS_MODEL", "route-llm")
+
+
+def provider():
+    """The Anthropic key wins; otherwise the Abacus key, otherwise no AI."""
+    if os.environ.get(API_KEY_VAR):
+        return "anthropic"
+    return "abacus" if os.environ.get(ABACUS_KEY_VAR) else None
+
+
+def active_model():
+    return ABACUS_MODEL if provider() == "abacus" else MODEL
+
+
 def ai_available():
-    return bool(os.environ.get(API_KEY_VAR))
+    return provider() is not None
 
 
 def make_client():
     """Dedicated key and endpoint only; a short timeout so a stalled network call can never hang a review."""
+    if provider() == "abacus":
+        from . import abacus
+
+        return abacus.Client(os.environ[ABACUS_KEY_VAR], ABACUS_MODEL)
     import anthropic
 
     return anthropic.Anthropic(api_key=os.environ[API_KEY_VAR], base_url="https://api.anthropic.com",
@@ -152,6 +171,8 @@ REVIEW_DEADLINE = 100  # seconds for one whole review; the UI shows a spinner me
 
 def cost_usd(model, usage):
     """Cost of one response from its usage block (input_tokens excludes cached tokens)."""
+    if provider() == "abacus":
+        model = "route-llm"
     price_in, price_out = PRICES.get(model, PRICES["claude-opus-5-5"])  # unknown model: assume the dearest
 
     def n(key):

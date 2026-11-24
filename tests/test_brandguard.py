@@ -720,3 +720,31 @@ def test_manual_contrast_check_on_the_poster_without_ai(client):
     dismiss = client.post(f"/api/submissions/{poster}/dismiss", headers=W("visitor-con-0001", "manager"),
                           json={"finding_id": card["id"], "reason": "The designer is fixing the colour"})
     assert dismiss.status_code == 200
+
+
+def test_abacus_adapter_translates_requests_and_responses(monkeypatch):
+    import io
+
+    from app import abacus, agent
+    monkeypatch.delenv("BRANDGUARD_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("BRANDGUARD_ABACUS_API_KEY", "abacus-test")
+    assert agent.provider() == "abacus" and agent.ai_available()
+    seen = {}
+
+    def fake_urlopen(req, timeout=0):
+        seen["body"] = json.loads(req.data)
+        return io.BytesIO(json.dumps({"choices": [{"finish_reason": "tool_calls", "message": {"content": None, "tool_calls": [
+            {"id": "c1", "type": "function", "function": {"name": "search_rules", "arguments": "{\"query\": \"tone\"}"}}]}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 20}}).encode())
+    monkeypatch.setattr(abacus.urllib.request, "urlopen", fake_urlopen)
+    prior = [{"role": "user", "content": "hi"},
+             {"role": "assistant", "content": [NS(type="tool_use", id="t0", name="lookup_fact", input={"claim": "38,000"})]},
+             {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0", "content": "{\"ok\": true}", "is_error": False}]}]
+    r = agent.make_client().messages.create(model="x", max_tokens=50, system=[{"type": "text", "text": "SYS"}], messages=prior,
+                                            tools=agent.TOOLS, output_config={"effort": "low"})
+    msgs = seen["body"]["messages"]
+    assert msgs[0] == {"role": "system", "content": "SYS"} and seen["body"]["max_tokens"] == 1500
+    assert msgs[2]["tool_calls"][0]["function"]["name"] == "lookup_fact" and msgs[3] == {"role": "tool", "tool_call_id": "t0", "content": "{\"ok\": true}"}
+    assert seen["body"]["tools"][0]["function"]["name"] == "search_rules" and "output_config" not in seen["body"]
+    assert r.stop_reason == "tool_use" and r.content[0].input == {"query": "tone"} and r.usage.input_tokens == 100
+    assert agent.cost_usd("whatever", r.usage) == pytest.approx((100 * 0.5 + 20 * 3.0) / 1e6)

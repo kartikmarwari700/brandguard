@@ -132,6 +132,7 @@ Everything works without an API key (rules-only mode). To enable the AI Review A
 | Variable | Default | Meaning |
 |---|---|---|
 | `BRANDGUARD_ANTHROPIC_API_KEY` | (none) | Anthropic API key; read only from this variable and sent only to the Anthropic API |
+| `BRANDGUARD_ABACUS_API_KEY` | (none) | Optional: use Abacus.AI RouteLLM (`route-llm`) instead of Anthropic when no Anthropic key is set |
 | `BRANDGUARD_MODEL` | `claude-haiku-5-5` | Model for all AI features |
 | `BRANDGUARD_AI_BUDGET_USD` | `1.00` | AI spend per server process before switching to rules-only mode |
 | `BRANDGUARD_AI_MAX_PER_HOUR` | `30` | New AI reviews per hour |

@@ -17,3 +17,5 @@ services:
         value: "1.00"
       - key: BRANDGUARD_AI_MAX_PER_HOUR
         value: "30"
+      - key: BRANDGUARD_ABACUS_API_KEY
+        sync: false

@@ -126,7 +126,7 @@ class Term(BaseModel):
 def status():
     kit = store.get_kit()
     on = agent.ai_available()
-    return {"ai": on, "model": agent.MODEL if on else None, "ai_budget": agent.budget.snapshot() if on else None,
+    return {"ai": on, "model": agent.active_model() if on else None, "ai_budget": agent.budget.snapshot() if on else None,
             "brand": kit["brand"]["name"], "kit_version": kit["version"]}
 
 
