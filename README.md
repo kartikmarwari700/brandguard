@@ -15,9 +15,7 @@ existing guideline document can be imported instead of typed in.
 
 The demo brand **CodeCraft Academy**, its facts, sample posts, poster, guideline PDF and example review history are fictional.
 
-> **Live demo status:** the AI account behind the public demo has no credit at the moment, so the live link runs in **rules-only mode**
-> (the header says so). Every feature, including the three Round 3 improvements, works in this mode; the AI parts switch on
-> automatically when the account has credit, and are covered by tests with a simulated model.
+> **Live demo:** the AI runs on Abacus.AI RouteLLM (the code also supports Anthropic Claude). If the AI is unavailable, everything keeps working in rules-only mode and the header says so.
 
 ---
 
